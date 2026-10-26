@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: vague-request-asks-inputs
+expected_outcome: |
+  The response does not launch a simulation on invented numbers. It asks for the inputs that
+  set the junction temperature (current or loss, Rds(on) or the part number, heat sink
+  geometry and fin orientation, surface finish or emissivity, worst-case ambient, IMS or PCB
+  and TIM stack, Rth j-c), explains briefly why they matter, and offers the hand calculation
+  as the first step once they are known.

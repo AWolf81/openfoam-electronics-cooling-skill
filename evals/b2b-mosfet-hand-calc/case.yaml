@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: b2b-mosfet-hand-calc
+expected_outcome: |
+  The answer computes the conduction loss of each MOSFET with Rds(on) at the operating
+  junction temperature (about 5 W each, about 10 W total), estimates the sink temperature with
+  free convection and radiation, gives a junction temperature per device near 50-60 C with
+  the margin to Tj max, and says whether CFD is needed (with a large margin it is optional, as
+  confirmation). It lists the assumptions it made.

@@ -1,0 +1,73 @@
+# Example: two MOSFETs back to back (bidirectional switch, e.g. battery disconnect),
+# 100 V class, 50 A continuous, both conducting, on one IMS on a vertical finned sink.
+# Free convection + radiation, no fan. All lengths in mm.
+#
+# Replace every value marked CHECK with the real part's datasheet / drawing.
+
+name: b2b-mosfet-50A
+ambient_C: 40                 # worst-case ambient, not room temperature
+
+heatsink:
+  width_mm: 150               # y, across the fins
+  length_mm: 200              # z, vertical, along the fins
+  base_mm: 8
+  fin: {count: 12, thickness_mm: 2.0, height_mm: 40}
+  k: 200                      # W/mK, 6063-T5 extrusion ~200, 1050 ~230, cast ~100-150
+  emissivity: 0.85            # black anodised 0.85-0.9, bare/milled Al 0.05-0.1
+  back: free                  # free = back face sees air, wall = mounted against a wall
+
+board:
+  label: IMS
+  size_mm: [60, 50]           # y, z
+  centre_mm: [75, 80]         # on the sink back face; low on the sink so hot air rises past the fins
+  emissivity: 0.9             # soldermask
+  # The stack, top to bottom, written as the board is built. Only the spreader is meshed; the
+  # layers above and below it are thin thermal resistances. An IMS is below; a Cu-core (QIT)
+  # board has spreader "Cu core" (k 390, rho 8960, cp 385) and its insulating prepreg in
+  # layers_to_sink. A layer is {name, thickness_um, k} or {name, R_m2K_W} (a contact).
+  layers_under_parts:         # from a part's pad down to the spreader
+    - {name: solder, thickness_um: 75, k: 50}
+    - {name: copper, thickness_um: 70, k: 390}
+    - {name: dielectric, thickness_um: 100, k: 2.2}   # CHECK: IMS datasheet (1-10 W/mK range)
+  spreader: {name: Al substrate, thickness_mm: 1.5, k: 200, rho: 2700, cp: 900}
+  layers_to_sink:             # from the spreader down to the heat sink
+    - {name: TIM, thickness_um: 100, k: 3.0}          # CHECK: pad or paste between board and sink
+    # no TIM at all: a dry metal contact is about {name: dry contact, R_m2K_W: 3e-4}
+
+electrical:
+  current_A: 50
+  rds_on_25C_mohm: 1.7        # CHECK: datasheet max, not typical
+  rds_on_factor_at_125C: 1.7  # CHECK: normalised Rds(on) vs Tj curve
+  switching_loss_W_per_device: 0   # static switch; set >0 if it switches
+
+devices:
+  - name: q1
+    size_mm: [10, 15, 4.5]    # y, z, thickness; D2PAK-7 / TOLL footprint size
+    centre_mm: [67, 80]
+    rth_jc: 0.4               # CHECK: K/W junction to exposed pad
+    tj_max_C: 175
+  - name: q2
+    size_mm: [10, 15, 4.5]
+    centre_mm: [83, 80]
+    rth_jc: 0.4
+    tj_max_C: 175
+
+airflow: {mode: free}         # free convection + radiation. With a fan:
+# airflow: {mode: forced, velocity_m_s: 1.5, direction: fins, channel_ratio: 0.45}
+#   velocity at the sink (a low-speed PC fan 20 cm away: ~1-1.5 m/s); direction fins (along the
+#   channels) or components (onto the parts; then mesh.clearance_mm.back ~100);
+#   channel_ratio = fin-channel / approach velocity, measured with scripts/channel_flow.py
+
+# report: {style: ir, view_up: z, mirror: false, ir_floor_K: 0}   # CFD figure and video
+
+mesh:
+  resolution: normal          # coarse (smoke test), normal, fine (mesh-independence check)
+  clearance_mm: {front: 120, back: 40, sides: 60, below: 60, above: 300}
+
+solver:
+  mode: steady                # steady (chtMultiRegionSimpleFoam) or transient (chtMultiRegionFoam)
+  iterations: 1500            # steady
+  end_time_s: 20              # transient, simulated seconds
+  solid_inertia_scale: 0.01   # transient: solid heat capacity factor (1 = real warm-up)
+  radiation: true
+  n_procs: 8

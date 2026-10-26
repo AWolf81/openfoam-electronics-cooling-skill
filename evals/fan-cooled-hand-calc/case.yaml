@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: fan-cooled-hand-calc
+expected_outcome: |
+  The answer treats the fan as an input it has to estimate: it states an approach velocity at
+  the sink for a low-speed PC fan 20 cm away (about 1-1.5 m/s, not the fan's rated airflow),
+  uses the skill's fan model (airflow: forced) and either a channel/bypass ratio or says that
+  a ducted assumption is optimistic for an open sink. It gives a junction temperature per
+  device near 48-52 C (about 54 C without the fan) with the margin to Tj max, and brackets the
+  fan speed or direction instead of quoting one number as certain. Assumptions are listed.
+---
+tags: [openfoam-electronics-cooling]
+max_turns: 30
+timeout_seconds: 900
+allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, Bash]
+---
+
+Same switch as before: two 100V MOSFETs back to back, 50 A continuous, Rds(on) max 1.7 mOhm at 25C, about 1.7x at 125C, Rth j-c 0.4 K/W, D2PAK-7 size, side by side on a 60x50 mm IMS (100 um dielectric at 2.2 W/mK, 1.5 mm alu), 100 um thermal pad (3 W/mK), black anodised extrusion 150 mm wide, 200 mm tall, 8 mm base, 12 vertical fins 2 mm thick, 40 mm high. Ambient up to 40 C. Now there is a 120 mm PC fan running at low speed about 20 cm below the sink, blowing up along the fins. How hot do the junctions get with the fan, and how much does the fan buy us? Put the numbers in fan-check.md.
