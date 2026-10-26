@@ -18,7 +18,12 @@ always use the same numbers.
 
 ### 1. Intake: get the inputs, mark every assumption
 
-Copy `assets/example-case.yaml` into the project and fill it in. What matters most, in order
+Work in the current working directory: `case.yaml` goes there and every case under `cases/`.
+All paths below are relative to it. If that directory is the home directory or this skill's
+folder, ask the user for a project folder (suggest `~/thermal/<design-name>`), create it and
+work there.
+
+Copy `assets/example-case.yaml` into that folder and fill it in. What matters most, in order
 of how much it moves the junction temperature:
 
 1. **Loss.** Current, Rds(on) at 25 C (datasheet *max*, not typical) and its factor at 125 C

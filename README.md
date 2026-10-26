@@ -26,7 +26,25 @@ Requirements:
 - Docker. The OpenFOAM image `opencfd/openfoam-default:2412` (about 2.2 GB) is pulled on first run.
 - [uv](https://docs.astral.sh/uv/), for the Python environment used by reports and renders.
 
-Then ask Claude Code something like *"Will 10 MOSFETs at 300 A on this heat sink overheat?"*.
+## Usage
+
+Start Claude Code in a new folder for your design. The skill writes `case.yaml` and all CFD cases
+under `cases/` there.
+
+```bash
+mkdir -p ~/thermal/my-power-stage && cd ~/thermal/my-power-stage
+claude
+```
+
+Then describe the design, with as many numbers as you have:
+
+> Will my power stage overheat? 10 MOSFETs (IAUT300N08S5N011, TOLL) as 5 back-to-back pairs at
+> 300 A continuous, 25 °C ambient. Copper-core board, 100 × 75 mm, on a Fischer SK 81 heat sink,
+> black anodised. A 12 V PC fan blows along the fins. Do a hand calc first, then run the CFD
+> and give me a report.
+
+Datasheets, a reference manual (PDF or link) and the board layout help: Claude reads the values from
+them. Anything missing is asked for or marked as an assumption (`# CHECK:` in `case.yaml`).
 
 ## Example: Infineon 48 V battery switch at 300 A
 
