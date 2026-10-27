@@ -58,27 +58,31 @@ maximum of 80 °C after 30 minutes at 300 A and 25 °C ambient.
 
 ![Infineon IR image](docs/infineon-fig46-ir.png)
 
-**Simulation** (CFD steady state, 1.0 m/s fan along the fins, terminals and 50 mm² cables, same colour
-palette):
+**Simulation** (CFD steady state, 2.4 m/s fan blowing onto the fin tips, k-ω SST, lugs and 50 mm²
+cables, copper losses in the board; IR-style palette):
 
-![CFD result](docs/cfd-result-1p0ms.png)
+![CFD result](docs/cfd-result.png)
 
-| Case | Hottest FET | Measured board max |
+| Fan (not given in the user guide) | Hottest FET case | Measured board max |
 |---|---|---|
-| CFD, 1.0 m/s (assumed fan speed) | Tj 102 °C | 80 °C |
-| CFD, 2.4 m/s (fan speed fitted to the measurement) | case 84 °C | 80 °C |
+| 1.5 m/s onto the fin tips (a low-speed fan) | 99 °C | 80 °C |
+| 2.4 m/s onto the fin tips | 86 °C | 80 °C |
+| about 2.8 m/s onto the fin tips | about 80 °C | 80 °C |
+| 2.4 m/s along the fins | 89 °C (normal mesh) | 80 °C |
 
-**The simulation is hotter than the measurement.** The user guide gives neither the fan speed nor the
-fan direction, so 1.0 m/s along the fins is an assumption, and at that speed the model is about 20 K
-too hot. The 2.4 m/s run comes within 4 K, but only because that speed was fitted to the measurement,
-not predicted. More checks are needed to bring the model closer to the real measurement: the
-fan speed and how much air reaches the fins, the dry contact between board and heat sink, the cables
-(which carry about 15 W out of the board, worth about 19 K on the FETs), and a finer mesh.
+**The model matches the measurement at about 2.8 m/s, which is a fit, not a prediction.** The
+user guide gives neither the fan speed nor its direction. At 2.4 m/s the model is 6 K hot. At a
+truly low fan speed it would be about 19 K hot.
 
-What already agrees:
-- energy balance of the solids: 0.0 %
-- hand calc vs CFD, heat sink rise: −4 %
-- warm-up to 90 %: about 8 min simulated, about 9 min measured (UG Fig. 47)
+Steps that brought the model from about 21 K to 6 K hot:
+- cables sized from their temperature in the IR image (50 mm² instead of 35 mm²): −5.5 K
+- turbulent air (k-ω SST) instead of laminar: −3 K, and the air-side energy balance closed
+- the fan blowing onto the fins instead of along them: −4 K at the same speed
+
+Checks: solids energy balance within 2 %, and the normal mesh within 1 K of the coarse one.
+
+**Still open:** the simulated warm-up reaches 90 % in about 3 min, while the measurement (UG Fig. 47)
+takes about 9 min.
 
 [`assets/example-case.yaml`](assets/example-case.yaml) is the input template.
 

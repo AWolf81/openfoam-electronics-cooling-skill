@@ -416,6 +416,9 @@ def ir_panels(fig, gs, img_dev, img_fin, clim, title, cfg):
             a1.annotate(lab, xy=(1.03, 0.25 if down else 0.75), xytext=(1.03, 0.75 if down else 0.25),
                         xycoords="axes fraction", textcoords="axes fraction", ha="center",
                         arrowprops=dict(arrowstyle="->", color="tab:blue", lw=2), color="tab:blue")
+        elif cfg.airflow["direction"] == "sink":
+            a1.text(0.5, -0.06, "fan air onto the fin tips (into the page)", transform=a1.transAxes,
+                    ha="center", color="tab:blue")
         else:
             a0.text(0.5, -0.06, lab.replace("\n", " ") + " (into the page)", transform=a0.transAxes,
                     ha="center", color="tab:blue")
