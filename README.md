@@ -81,7 +81,8 @@ Steps that brought the model from about 21 K to 6 K hot:
 
 Checks: solids energy balance within 2 %, and the normal mesh within 1 K of the coarse one.
 
-**Still open:** the simulated warm-up reaches 90 % in about 3 min, while the measurement (UG Fig. 47)
+**Still open:** the simulated warm-up reaches 90 % in about 5 min (with the heat capacity of the lugs and
+cables included), while the measurement (UG Fig. 47)
 takes about 9 min.
 
 [`assets/example-case.yaml`](assets/example-case.yaml) is the input template.
