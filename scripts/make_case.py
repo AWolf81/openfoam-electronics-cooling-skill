@@ -7,8 +7,9 @@ What it builds (geometry convention in cooling_model.py):
   * one structured blockMesh whose grid lines fall exactly on every solid edge
     (fins, base, board spreader, packages), so topoSet boxes select cells without staircasing;
   * cellZones -> splitMeshRegions -> regions: air (fluid), heatsink, ims, one per device;
-  * laminar buoyant air, open boundaries on all sides; with airflow.mode forced one of them
-    is a uniform fan inlet (along the fins, or onto the component side)
+  * buoyant air (laminar, or k-omega SST with airflow.turbulence), open boundaries on all
+    sides; with airflow.mode forced one of them is a uniform fan inlet (along the fins, onto
+    the component side, or onto the fin tips)
     (or a wall behind the sink when heatsink.back = wall);
   * fvDOM surface radiation in the air (transparent air, grey diffuse surfaces);
   * the board (region "ims") meshed as its spreader plate (Al of an IMS, Cu core, ...);
@@ -693,7 +694,13 @@ mixture
     transport       {{ mu {mu:.5g}; Pr 0.71; }}
 }}
 """)
-    foam(case / "constant/air/turbulenceProperties", "turbulenceProperties", "simulationType  laminar;")
+    turb = cfg.airflow.get("turbulence") if cfg.airflow["mode"] == "forced" else None
+    if turb:
+        foam(case / "constant/air/turbulenceProperties", "turbulenceProperties",
+             f"simulationType  RAS;\n\nRAS\n{{\n    model           {turb['model']};\n"
+             "    turbulence      on;\n    printCoeffs     on;\n}")
+    else:
+        foam(case / "constant/air/turbulenceProperties", "turbulenceProperties", "simulationType  laminar;")
     if rad:
         # solver.radiation_rays [nPhi, nTheta] per octant (default 3 3 = 72 rays) and
         # solver.radiation_every (iterations per fvDOM solve, default 10). [2, 2] and 50 ran
@@ -789,6 +796,36 @@ sootModel       none;
     if inlet:
         prgh.append((inlet, "type            fixedFluxPressure;\n            value           uniform 1e5;"))
     field("air", "p_rgh", "volScalarField", "[1 -1 -2 0 0 0 0]", "uniform 1e5", prgh)
+    if turb:
+        # k-omega SST: the fan inlet carries its turbulence (intensity, mixing length); air
+        # entrained through the other open boundaries is nearly still. Spalding's wall function
+        # and Jayatilleke's thermal one hold for any y+, so the coarse mesh can use them.
+        k_in = 1.5 * (turb["intensity"] * af["velocity"]) ** 2
+        w_in = math.sqrt(k_in) / (0.09 ** 0.25 * turb["length_mm"] * MM)
+        k_amb, w_amb = 1e-5, 1.0
+        walls = [walls_air] + (["back"] if back_wall else [])
+        def turb_field(name, inl, amb, wall, internal):
+            bcs = [(open_re, f"type            inletOutlet;\n            inletValue      uniform {amb:g};\n"
+                             f"            value           uniform {amb:g};")]
+            bcs += [(w, wall) for w in walls]
+            if inlet:
+                bcs.append((inlet, inl))
+            field("air", name, "volScalarField", "[0 2 -2 0 0 0 0]" if name == "k" else
+                  "[0 0 -1 0 0 0 0]", f"uniform {internal:g}", bcs)
+        turb_field("k", f"type            turbulentIntensityKineticEnergyInlet;\n"
+                        f"            intensity       {turb['intensity']:g};\n            value           uniform {k_in:g};",
+                   k_amb, f"type            kqRWallFunction;\n            value           uniform {k_in:g};", k_in)
+        turb_field("omega", f"type            turbulentMixingLengthFrequencyInlet;\n"
+                            f"            mixingLength    {turb['length_mm'] * MM:g};\n            value           uniform {w_in:g};",
+                   w_amb, f"type            omegaWallFunction;\n            value           uniform {w_in:g};", w_in)
+        calc = "type            calculated;\n            value           uniform 0;"
+        field("air", "nut", "volScalarField", "[0 2 -1 0 0 0 0]", "uniform 0",
+              [('".*"', calc)] + [(w, "type            nutUSpaldingWallFunction;\n            value           uniform 0;")
+                                  for w in walls])
+        field("air", "alphat", "volScalarField", "[1 -1 -1 0 0 0 0]", "uniform 0",
+              [('".*"', calc)] + [(w, "type            compressible::alphatJayatillekeWallFunction;\n"
+                                      "            Prt             0.85;\n            value           uniform 0;")
+                                  for w in walls])
     field("air", "p", "volScalarField", "[1 -1 -2 0 0 0 0]", "uniform 1e5",
           [('".*"', "type            calculated;\n            value           uniform 1e5;")])
     # The CHT solver resets p_rgh = p - rho*gh at start-up, so a uniform initial p means air out
@@ -828,12 +865,13 @@ divSchemes
     div(phi,h)      bounded Gauss limitedLinear 1;
     div(phi,K)      bounded Gauss upwind;
     div(Ji,Ii_h)    bounded Gauss upwind;
-    div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
-}
+    div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;TURB_DIV
+}TURB_WALL
 laplacianSchemes { default Gauss linear corrected; }
 interpolationSchemes { default linear; }
 snGradSchemes   { default corrected; }
-""")
+""".replace("TURB_DIV", "\n    div(phi,k)      bounded Gauss upwind;\n    div(phi,omega)  bounded Gauss upwind;" if turb else "")
+   .replace("TURB_WALL", "\nwallDist        { method meshWave; }" if turb else ""))
     if transient:
         foam(case / "system/air/fvSolution", "fvSolution", """
 solvers
@@ -884,6 +922,11 @@ relaxationFactors
     equations   { U 0.3; h 0.5; "ILambda.*" 0.7; qr 0.7; }
 }
 """)
+    if turb:   # k and omega solved like U and h
+        f = case / "system/air/fvSolution"
+        f.write_text(f.read_text().replace('"(U|h)', '"(U|h|k|omega)')
+                     .replace("U 0.3; h 0.5;", "U 0.3; h 0.5; k 0.5; omega 0.5;")
+                     .replace('"U.*" 1;', '"U.*" 1; "(k|omega).*" 1;'))
 
     # ---- solids
     sp = cfg.ims["spreader"]

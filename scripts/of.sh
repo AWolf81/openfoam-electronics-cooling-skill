@@ -6,7 +6,8 @@
 #
 # Env: OF_IMAGE (default opencfd/openfoam-default:2412), OF_CPUS (docker --cpus limit).
 # Uses the current Docker context; if that daemon is down (for example Docker Desktop is
-# off) and the system engine socket exists, it falls back to the system engine.
+# off) and the system engine socket exists, it falls back to the system engine. It does the
+# same when the current context is Docker Desktop and the case lies outside the home directory.
 set -euo pipefail
 
 case_dir=${1:?usage: of.sh <case-dir> <command...>}
@@ -25,12 +26,27 @@ if ! docker info >/dev/null 2>&1; then
     fi
 fi
 
+abs=$(cd "$case_dir" && pwd)
+
+# Docker Desktop runs in a VM and mounts only its shared folders (by default the home
+# directory), so a case on another disk fails with "mounts denied". Use the system engine then.
+host=${DOCKER_HOST:-$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)}
+if [[ "$host" == *desktop* && "$abs" != "$HOME"/* ]]; then
+    if [ -S /var/run/docker.sock ] && DOCKER_HOST=unix:///var/run/docker.sock docker info >/dev/null 2>&1; then
+        export DOCKER_HOST=unix:///var/run/docker.sock
+        echo "of.sh: $abs is outside Docker Desktop's shared folders, using the system engine" >&2
+    else
+        echo "of.sh: Docker Desktop cannot mount $abs; add it under Settings > Resources > File sharing," >&2
+        echo "       or start the system docker service" >&2
+        exit 3
+    fi
+fi
+
 if ! docker image inspect "$image" >/dev/null 2>&1; then
     echo "of.sh: pulling $image (about 2.2 GB, once)" >&2
     docker pull "$image" >&2
 fi
 
-abs=$(cd "$case_dir" && pwd)
 extra=()
 [ -n "${OF_CPUS:-}" ] && extra+=(--cpus "$OF_CPUS")
 

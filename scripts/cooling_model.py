@@ -232,6 +232,8 @@ def load_config(path: str | Path) -> Config:
 AIRFLOW_DIRECTIONS = {   # inlet boundary and flow direction of a fan
     "fins": ("bottom", (0, 0, 1)),          # up along the fins, from below the sink
     "components": ("back", (1, 0, 0)),      # straight onto the component side
+    "sink": ("front", (-1, 0, 0)),          # straight onto the fin tips (fan in front of the sink);
+                                            # the hand calc still assumes flow along the channels
 }
 
 
@@ -240,7 +242,10 @@ def load_airflow(raw: dict) -> dict:
        airflow: {mode: forced, velocity_m_s: 1.5, direction: fins, channel_ratio: 0.45}
     direction: fins (along the fin channels) or components (onto the parts' side).
     channel_ratio: fin-channel velocity / approach velocity for the hand calc (measure it in a
-    CFD run with channel_flow.py; an open sink lets half or more of the air bypass)."""
+    CFD run with channel_flow.py; an open sink lets half or more of the air bypass).
+    turbulence: {intensity: 0.1, length_mm: 10} (optional, forced only): k-omega SST air with a
+    turbulent fan inlet (intensity = u'/U, length_mm = mixing length). Without it the air is
+    laminar, which under-predicts heat transfer in a fan's swirling, turbulent jet."""
     a = raw.get("airflow") or {"mode": "free"}
     mode = a.get("mode", "free")
     if mode == "free":
@@ -250,8 +255,12 @@ def load_airflow(raw: dict) -> dict:
     d = a.get("direction", "fins")
     if d not in AIRFLOW_DIRECTIONS:
         raise ValueError(f"airflow.direction: one of {', '.join(AIRFLOW_DIRECTIONS)}")
+    t = a.get("turbulence")
+    if t:
+        t = {"model": t.get("model", "kOmegaSST"), "intensity": float(t.get("intensity", 0.1)),
+             "length_mm": float(t.get("length_mm", 10))}
     return {"mode": "forced", "velocity": float(_req(a, "velocity_m_s", "airflow")), "direction": d,
-            "channel_ratio": a.get("channel_ratio")}
+            "channel_ratio": a.get("channel_ratio"), "turbulence": t}
 
 
 def load_solids(raw: dict, device_names: set) -> list:

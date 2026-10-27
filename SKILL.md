@@ -50,11 +50,19 @@ of how much it moves the junction temperature:
 6. **Packages:** footprint, Rth(j-c), Tj(max), position on the board. Low on the sink is better:
    the air warms as it rises.
 7. **Airflow** (`airflow:`): free convection (default) or a fan, `{mode: forced,
-   velocity_m_s, direction: fins | components, channel_ratio}`. The velocity is the
+   velocity_m_s, direction: fins | components | sink, channel_ratio, turbulence}`. The velocity is the
    approach speed of the fan air at the sink, not at the fan: a 120 mm PC fan at low speed
    gives ~1.5 m/s at its face and ~1-1.5 m/s 20 cm away. `fins` blows along the fin
    channels from below; `components` blows straight onto the parts' side (inlet on the back
-   boundary; set `mesh.clearance_mm.back` to ~100 so the inlet is not on top of the parts).
+   boundary; set `mesh.clearance_mm.back` to ~100 so the inlet is not on top of the parts);
+   `sink` blows straight onto the fin tips (a fan in front of the sink; inlet on the front
+   boundary). Less air bypasses than with `fins`: on a 100 x 75 mm sink it ran ~4 K cooler at
+   the same speed. The hand calc only models flow along the channels, so for `sink` it is a
+   rough check (expect the CFD 20-25 % below it).
+   For any fan, set `turbulence: {intensity: 0.1, length_mm: 10}`: the air becomes k-omega
+   SST with a turbulent inlet. A fan's jet is turbulent and swirling; laminar air under-
+   predicted heat transfer (3 K hotter FETs) and its steady solution never settled behind the
+   sink (air energy balance 12 % off; with SST 0.1 %). Leave it out for free convection.
    An open sink lets half or more of the air go around it; the hand calc needs that as
    `channel_ratio` (fin-channel / approach velocity). Measure it once with
    `scripts/channel_flow.py` on a CFD run and put it in the YAML; without it the hand calc
@@ -89,7 +97,7 @@ python3 <skill>/scripts/make_case.py case.yaml cases/<name>-coarse --resolution 
 
 The generator writes a complete OpenFOAM v2412 case: one structured mesh whose grid lines
 fall on every solid edge, split into regions `air`, `heatsink`, `ims` and one per device;
-laminar buoyant air with open boundaries; fvDOM radiation; the board's spreader meshed (region
+buoyant air (laminar, or k-omega SST with `airflow.turbulence`) with open boundaries; fvDOM radiation; the board's spreader meshed (region
 `ims`, whatever the board type) with the layers above and below it as thin thermal layers on
 the interfaces; device losses as volumetric sources at
 the hand-calc power. It prints the expected cell count per region; `splitMeshRegions` and

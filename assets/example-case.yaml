@@ -53,10 +53,12 @@ devices:
     tj_max_C: 175
 
 airflow: {mode: free}         # free convection + radiation. With a fan:
-# airflow: {mode: forced, velocity_m_s: 1.5, direction: fins, channel_ratio: 0.45}
+# airflow: {mode: forced, velocity_m_s: 1.5, direction: fins, channel_ratio: 0.45,
+#           turbulence: {intensity: 0.1, length_mm: 10}}
 #   velocity at the sink (a low-speed PC fan 20 cm away: ~1-1.5 m/s); direction fins (along the
-#   channels) or components (onto the parts; then mesh.clearance_mm.back ~100);
-#   channel_ratio = fin-channel / approach velocity, measured with scripts/channel_flow.py
+#   channels), components (onto the parts; then mesh.clearance_mm.back ~100) or sink (onto the
+#   fin tips); channel_ratio = fin-channel / approach velocity, measured with
+#   scripts/channel_flow.py; turbulence = k-omega SST with a turbulent fan inlet (use it with a fan)
 
 # report: {style: ir, view_up: z, mirror: false, ir_floor_K: 0}   # CFD figure and video
 
