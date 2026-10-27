@@ -17,6 +17,7 @@ import argparse
 import csv
 import datetime as dt
 import json
+import math
 import os
 import re
 import shutil
@@ -765,7 +766,9 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
         rows = [["Solver", "chtMultiRegionFoam (transient)" if mode == "transient" else "chtMultiRegionSimpleFoam (steady)"],
                 ["Mesh", f"{ec['_total']:,} cells, resolution {meta['resolution']}; " +
                          ", ".join(f"{r} {ec[r]:,}" for r in meta["regions"])],
-                ["Air", "laminar, buoyant, ideal gas; open boundaries on all sides (room at ambient)"],
+                ["Air", (f"k-omega SST (fan inlet {t['intensity']:.0%} turbulence, {t['length_mm']:g} mm mixing length)"
+                         if (t := cfg.airflow.get("turbulence")) else "laminar")
+                 + ", buoyant, ideal gas; open boundaries on all sides (room at ambient)"],
                 ["Radiation", "fvDOM surface radiation, grey diffuse surfaces, black surroundings at ambient"
                  if meta["config"].get("solver", {}).get("radiation", True) else "off"],
                 ["Board", f"{cfg.ims['spreader']['name']} meshed; the layers above it (part side) and below "
@@ -841,7 +844,8 @@ def main() -> int:
     ap.add_argument("source", help="case directory, or a case YAML for a hand-calc-only report")
     ap.add_argument("--out", help="output directory (default <case>/report)")
     ap.add_argument("--no-video", action="store_true")
-    ap.add_argument("--hours", type=float, default=2.0, help="warm-up span")
+    ap.add_argument("--hours", type=float, help="warm-up span (default: until 99 %% of the rise, "
+                    "plus half again, in whole 5 minutes)")
     ap.add_argument("--style", choices=["ir", "3d"], help="CFD figure and video: thermal-camera "
                     "views of both sides (default) or a 3D view; also report.style in the YAML")
     a = ap.parse_args()
@@ -871,7 +875,10 @@ def main() -> int:
     fig_layout(cfg, figs["layout"])
     fig_assembly_3d(cfg, figs["assembly"])
 
-    rows, summ = warmup.simulate(cfg, case if has_cfd else None, a.hours)
+    rows, summ = warmup.simulate(cfg, case if has_cfd else None, a.hours or 2.0)
+    if a.hours is None and summ["t99_s"]:   # show the warm-up, not an hour of flat line
+        span = math.ceil(1.5 * summ["t99_s"] / 300) * 300
+        rows = [r for r in rows if r["t_s"] <= span]
     with (out / "warmup.csv").open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
