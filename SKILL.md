@@ -163,7 +163,11 @@ mean no longer moves.
   Steady state means nothing else can happen to it.
 - **Settled:** the mean heat flow and the mean case temperatures moved less than 0.5 % / 0.5 K
   between the two halves of the last fifth of the run. If not, run longer (`startFrom
-  latestTime` resumes) before anything else.
+  latestTime` resumes) before anything else. A free-convection case with little heat (around
+  10 W) settles slowly: if "Heat flow settled" misses by a small margin (below 1 %) while the
+  energy balance passes, rerun with `solver.iterations: 3000` and only then judge the result
+  (plate-fin validation at 9.2 W: 1500 iterations gave 0.65 % coarse / 0.53 % normal, 3000 gave
+  0.28 % / 0.21 %). `--init-from` the first case (same mesh) shortens the rerun.
 - **Physically sane flow:** peak air speed below 1 m/s in free convection, or below 3x the fan
   inlet speed when `forced_air.U_approach_m_s` is in case-meta.json; no air hotter than the
   hottest solid; mass in = mass out over the open boundaries. A failure here means a setup or

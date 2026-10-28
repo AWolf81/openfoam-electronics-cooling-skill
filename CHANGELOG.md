@@ -20,6 +20,10 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
 ### Changed
 
 - The package hash also leaves out `.planning/` (README, SKILL.md, `.github/package-hash.sh`).
+- SKILL.md intake: emissivity is set per part (`heatsink`, `board`, `devices[]`, `solids[]`);
+  metal or foil-covered heat sources need 0.03-0.1 instead of the 0.9 default.
+- SKILL.md checks: a low-power free-convection run that just misses "Heat flow settled" is rerun
+  with `solver.iterations: 3000` before the result is judged.
 
 ## [0.1.0] - 2026-10-28
 
