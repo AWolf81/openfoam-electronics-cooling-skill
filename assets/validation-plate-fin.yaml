@@ -1,0 +1,71 @@
+# Validation case: plate-fin heat sink in free convection, measured by calorimetry.
+#
+# Source: M. Kirinčić, T. Fadiga, B. Delač, "Experimental–Numerical Investigation of Natural
+# Convection from a Plate Fin Heat Sink with Correlation Assessment", Thermo 2025, 5(4), 57,
+# https://doi.org/10.3390/thermo5040057 (CC BY 4.0). Geometry from their Fig. 1, measurement from
+# their Table 1 and Section 4.
+#
+# Measured: 9.22 W at base 50.0 °C, ambient 29.02 °C -> R = 2.28 K/W (their Fluent CFD: 2.22 K/W).
+# This skill, v0.1.0: hand calc 50.6 °C (2.34 K/W); CFD coarse 49.8 °C (2.25 K/W), normal
+# 50.0 °C (2.28 K/W); all checks pass on both meshes. Compare the heater's case temperature (= the
+# base) with 50.0 °C.
+#
+# The heat came from a water vessel pressed onto the whole base with silicone paste and insulated
+# on every other side. Modelled as a thin aluminium "vessel wall" (the board spreader) over the
+# whole base, a flat heater part on it with the measured power, and an adiabatic wall at the back.
+#
+#   python3 <skill>/scripts/hand_calc.py validation-plate-fin.yaml
+#   python3 <skill>/scripts/make_case.py validation-plate-fin.yaml cases/plate-fin-coarse --resolution coarse
+#   <skill>/scripts/of.sh cases/plate-fin-coarse ./Allrun          # about 10 min on 8 cores
+#   python3 <skill>/scripts/report.py cases/plate-fin-coarse
+
+name: validation-plate-fin-9W
+ambient_C: 29.02               # paper Table 1
+
+heatsink:
+  width_mm: 123                # 11 fins x 3 mm + 10 gaps x 9 mm
+  length_mm: 100               # vertical, along the fins
+  base_mm: 6
+  fin: {count: 11, thickness_mm: 3.0, height_mm: 30}
+  k: 200                       # CHECK: alloy not stated in the paper (extruded 6063 ~200 W/mK)
+  emissivity: 0.05             # bare aluminium, no surface treatment (paper: radiation <= 5 %)
+  back: wall                   # the insulated water vessel behind the base
+
+board:
+  label: water vessel wall
+  size_mm: [123, 100]          # the whole base
+  centre_mm: [61.5, 50]
+  emissivity: 0.05             # vessel covered in aluminium foil
+  layers_under_parts:
+    - {name: contact, thickness_um: 10, k: 200}
+  spreader: {name: Al vessel wall, thickness_mm: 2, k: 200, rho: 2700, cp: 900}
+  layers_to_sink:
+    - {name: silicone paste, thickness_um: 50, k: 1.0}   # CHECK: not stated; adds only ~0.004 K/W
+
+electrical:                    # unused: the heater has a fixed power
+  current_A: 0
+  rds_on_25C_mohm: 1
+  rds_on_factor_at_125C: 1.5
+  switching_loss_W_per_device: 0
+
+devices:                       # the skill needs at least one heat source: the water, as a heater
+  - name: heater
+    size_mm: [121, 98, 1]      # just inside the board edge
+    centre_mm: [61.5, 50]
+    power_W: 9.22              # measured heat flow (calorimetry, 960 s steady period)
+    rth_jc: 0
+    tj_max_C: 100
+    emissivity: 0.03           # foil-covered vessel; the default 0.9 radiated 0.6 W out the back
+                               # and broke the energy balance
+
+airflow: {mode: free}
+
+mesh:
+  resolution: coarse
+  clearance_mm: {front: 100, back: 5, sides: 40, below: 100, above: 250}
+
+solver:
+  mode: steady
+  iterations: 3000             # 9 W of free convection settles slowly; 1500 just missed the gate
+  radiation: true
+  n_procs: 8

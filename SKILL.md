@@ -294,7 +294,7 @@ this. Read the version from `VERSION`, then compute the package hash with standa
 this skill's directory; on macOS replace `sha256sum` with `shasum -a 256`):
 
 ```bash
-find . -type f ! -path './.git/*' ! -path './.github/*' ! -path '*/__pycache__/*' ! -name '*.pyc' \
+find . -type f ! -path './.git/*' ! -path './.github/*' ! -path './.planning/*' ! -path '*/__pycache__/*' ! -name '*.pyc' \
   ! -name README.md ! -name CHANGELOG.md -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum
 ```
 

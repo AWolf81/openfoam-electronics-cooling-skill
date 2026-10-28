@@ -34,14 +34,14 @@ Requirements:
 ## Verify your installation
 
 Each release publishes a **package SHA-256** over every file the skill uses (all files except
-`README.md`, `CHANGELOG.md`, `.git/`, `.github/` and Python's `__pycache__`). Check an installed
+`README.md`, `CHANGELOG.md`, `.git/`, `.github/`, `.planning/` and Python's `__pycache__`). Check an installed
 copy with standard tools only, from the skill's folder (on macOS use `shasum -a 256` for
 `sha256sum`):
 
 ```bash
 cd ~/.claude/skills/openfoam-electronics-cooling
 cat VERSION
-find . -type f ! -path './.git/*' ! -path './.github/*' ! -path '*/__pycache__/*' ! -name '*.pyc' \
+find . -type f ! -path './.git/*' ! -path './.github/*' ! -path './.planning/*' ! -path '*/__pycache__/*' ! -name '*.pyc' \
   ! -name README.md ! -name CHANGELOG.md -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum
 ```
 
@@ -115,6 +115,26 @@ cables included), while the measurement (UG Fig. 47)
 takes about 9 min.
 
 [`assets/example-case.yaml`](assets/example-case.yaml) is the input template.
+
+## Validation: plate-fin heat sink against a published measurement
+
+[`assets/validation-plate-fin.yaml`](assets/validation-plate-fin.yaml) reproduces the experiment in
+Kirinčić, Fadiga and Delač, *Experimental–Numerical Investigation of Natural Convection from a
+Plate Fin Heat Sink with Correlation Assessment*, Thermo 2025, 5(4), 57
+([doi:10.3390/thermo5040057](https://doi.org/10.3390/thermo5040057), CC BY 4.0). It is a bare
+aluminium extrusion, 123 × 100 mm with 11 fins (3 × 30 mm, 9 mm gaps), vertical in still air and
+heated through its base by a water vessel. The heat flow was measured by calorimetry.
+
+| 9.22 W, ambient 29.02 °C | Base temperature | R sink–air | vs measured |
+|---|---|---|---|
+| Measurement | 50.0 °C | 2.28 K/W | |
+| Paper's CFD (ANSYS Fluent, 4–9 M cells) | | 2.22 K/W | −3 % |
+| This skill: hand calc | 50.6 °C | 2.34 K/W | +3 % |
+| This skill: CFD, coarse (138 k cells) | 49.8 °C | 2.25 K/W | −1 % |
+| This skill: CFD, normal (317 k cells) | 50.0 °C | 2.28 K/W | 0 % |
+
+All checks pass on both meshes (energy balance +1.1 to +1.5 %, settled, hand calc vs CFD −4 to
+−5 %). Run with skill v0.1.0 from a fresh install. The YAML header has the commands.
 
 ## License
 

@@ -9,6 +9,18 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
 
 ## [Unreleased]
 
+### Added
+
+- Validation case `assets/validation-plate-fin.yaml`: a plate-fin heat sink in free convection
+  against the measurement in Kirinčić et al., Thermo 2025 (CC BY 4.0). Hand calc +3 %, CFD on the
+  normal mesh 0 % on the thermal resistance; results table in the README.
+- GSD planning in `.planning/` (project, requirements, roadmap for 0.2.0, the v0.2 PRD). It is
+  not part of the skill package and is left out of the package hash.
+
+### Changed
+
+- The package hash also leaves out `.planning/` (README, SKILL.md, `.github/package-hash.sh`).
+
 ## [0.1.0] - 2026-10-28
 
 First release.

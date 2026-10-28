@@ -42,7 +42,7 @@ jobs:
             echo "From the installed skill folder (macOS: \`shasum -a 256\` for \`sha256sum\`):"
             echo
             echo '```bash'
-            echo "find . -type f ! -path './.git/*' ! -path './.github/*' ! -path '*/__pycache__/*' ! -name '*.pyc' \\"
+            echo "find . -type f ! -path './.git/*' ! -path './.github/*' ! -path './.planning/*' ! -path '*/__pycache__/*' ! -name '*.pyc' \\"
             echo "  ! -name README.md ! -name CHANGELOG.md -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum"
             echo '```'
             echo
