@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-28)
 ## Current Position
 
 Phase: 1 of 5 (Baseline, validation fixes and report)
-Plan: 3 of 7 in current phase
-Status: In progress (wave 3: 01-04)
-Last activity: 2026-10-28 — Wave 2 done: 01-03 heat sinks without devices; plate-fin coarse 49.4 °C base, R 2.214 K/W (−2.9 %), all checks pass
+Plan: 4 of 7 in current phase
+Status: In progress (wave 4: 01-05, has a checkpoint)
+Last activity: 2026-10-28 — Wave 3 done: 01-04 warm-up and Word report without devices; Infineon device report byte-identical before/after
 
-Progress: [████░░░░░░] 43% (3 of 7 plans in phase 1)
+Progress: [██████░░░░] 57% (4 of 7 plans in phase 1)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Recent decisions affecting current work:
 
 - SKILL.md: say that `devices` may be empty when `board.power_W` is set (fold into 01-07 docs).
 - README plate-fin table: normal-mesh row is still the v0.1.0 heater run; rerun normal mesh without devices before 0.2.0.
+- Layout figure: dimension labels overlap axis numbers when the board covers the whole sink (cosmetic; 01-05/01-07 may fix).
 - hand_calc.py zero-device output prints "Base under board" and "R_sink-air" twice (cosmetic).
 
 ### Blockers/Concerns
