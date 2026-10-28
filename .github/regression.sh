@@ -38,7 +38,9 @@ export PYTHONHASHSEED=0
 # system/controlDict), so they are compared byte for byte. A tool's exit status and stderr
 # are recorded too, so an eval YAML that is not a case file (the tools reject it) is still
 # compared; Python tracebacks name the script paths, which are replaced by <TREE> (both the
-# path as given and with symlinks resolved).
+# path as given and with symlinks resolved). The traceback frames (line numbers, source lines)
+# are dropped: they move with any edit to the script, while the exception line and the exit
+# status say whether the tool rejects the file the same way.
 run() {
     local tree=$1 out="$tmp/$2/$3" yaml="$1/$4" real rc
     real=$(cd "$tree" && pwd -P)
@@ -50,8 +52,9 @@ run() {
     echo "exit $rc" >>"$out/make.raw"
     for f in hand make; do
         TREE="$tree" REAL="$real" python3 -c '
-import os, sys
+import os, re, sys
 s = sys.stdin.read()
+s = re.sub(r"Traceback \(most recent call last\):\n(?:[ \t].*\n)*", "Traceback (frames omitted)\n", s)
 for p in sorted({os.environ["TREE"], os.environ["REAL"]}, key=len, reverse=True):
     s = s.replace(p, "<TREE>")
 sys.stdout.write(s)' <"$out/$f.raw" >"$out/$f.txt"
