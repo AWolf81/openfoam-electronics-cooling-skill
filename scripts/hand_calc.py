@@ -37,7 +37,10 @@ def main() -> int:
         lo, hi = 0.05, 20.0
         for _ in range(50):
             cfg.airflow["velocity"] = mid = (lo * hi) ** 0.5
-            hot = max(d["T_case_C"] for d in network(cfg)["devices"])
+            r = network(cfg)
+            # no devices: the hottest point is the board's heated face
+            hot = max((d["T_case_C"] for d in r["devices"]),
+                      default=r["T_base_under_ims_C"] + r["P_tot"] * r["R_tim"])
             lo, hi = (mid, hi) if hot > a.calibrate else (lo, mid)
         print(f"fan approach velocity {mid:.2f} m/s gives a hottest case of {a.calibrate:g} C "
               f"(channel_ratio {cfg.airflow.get('channel_ratio') or 'ducted'})")
@@ -70,14 +73,26 @@ def main() -> int:
     print(f"Base under board      {r['T_base_under_ims_C']:8.1f} C   spreading {r['R_sp_base']:.3f} K/W")
     print(f"Board to sink layers  {r['R_tim']:8.3f} K/W")
     print()
-    print(f"{'device':<10} {'P W':>7} {'layers K/W':>11} {'spread K/W':>11} {'Tcase C':>8} {'Tj C':>7} {'margin':>7}")
+    if not r["devices"]:
+        # bare heat sink: the heat enters through the board, so the result is a board/base temperature
+        T_board = r["T_base_under_ims_C"] + r["P_tot"] * r["R_tim"]
+        print("No devices: the heat enters through the board (board.power_W); the result is the")
+        print("board/base temperature.")
+        print(f"Base under board      {r['T_base_under_ims_C']:8.1f} C   R base-air "
+              f"{(r['T_base_under_ims_C'] - Ta) / r['P_tot']:.3f} K/W")
+        print(f"Board (heated face)   {T_board:8.1f} C   R board-air "
+              f"{(T_board - Ta) / r['P_tot']:.3f} K/W")
+        print(f"R_sink-air            {r['R_sa']:8.3f} K/W")
+        print()
     worst = None
-    for d in r["devices"]:
-        m = d["tj_max"] - d["T_j_C"]
-        worst = m if worst is None else min(worst, m)
-        print(f"{d['name']:<10} {d['P']:7.2f} {d['R_layers']:11.3f} {d['R_sp_ims']:11.3f} "
-              f"{d['T_case_C']:8.1f} {d['T_j_C']:7.1f} {m:7.1f}")
-    print()
+    if r["devices"]:
+        print(f"{'device':<10} {'P W':>7} {'layers K/W':>11} {'spread K/W':>11} {'Tcase C':>8} {'Tj C':>7} {'margin':>7}")
+        for d in r["devices"]:
+            m = d["tj_max"] - d["T_j_C"]
+            worst = m if worst is None else min(worst, m)
+            print(f"{d['name']:<10} {d['P']:7.2f} {d['R_layers']:11.3f} {d['R_sp_ims']:11.3f} "
+                  f"{d['T_case_C']:8.1f} {d['T_j_C']:7.1f} {m:7.1f}")
+        print()
     if worst is not None and worst < 25:
         print(f"WARNING: junction margin {worst:.0f} K is below the usual 25 K design margin.")
     if af["mode"] == "free" and abs(r["gap"] - r["gap_opt"]) / r["gap_opt"] > 0.4:

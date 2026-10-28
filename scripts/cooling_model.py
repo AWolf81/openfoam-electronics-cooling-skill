@@ -194,7 +194,7 @@ def load_config(path: str | Path) -> Config:
     tim = {"t": t_below, "k": t_below / layers_R(ims["below"])}
 
     devices = []
-    for d in _req(raw, "devices", "root"):
+    for d in raw.get("devices") or []:
         sz = d.get("size_mm", [10, 15, 4.5])
         devices.append(Device(
             name=_req(d, "name", "devices[]"),
@@ -207,8 +207,10 @@ def load_config(path: str | Path) -> Config:
             power_W=d.get("power_W"),
             conducts=d.get("conducts", True),
         ))
-    if not devices:
-        raise ValueError("no devices")
+    # A bare heat-sink case (datasheet R_sa check, calorimetry benchmark) has no devices: its heat
+    # goes into the board through board.power_W or the islands' power_W.
+    if not devices and not (ims["power_W"] > 0 or any(i["power_W"] > 0 for i in ims["islands"])):
+        raise ValueError("no heat source: add devices or board.power_W")
 
     el = raw.get("electrical", {})
     electrical = {
@@ -519,7 +521,8 @@ def network(cfg: Config) -> dict:
             rows.append({"name": d.name, "P": P[d.name], "R_layers": R_layers, "R_sp_ims": R_sp_ims,
                          "T_case_C": T_case, "T_j_C": T_j, "tj_max": d.tj_max,
                          "rds_mohm": rds_on(cfg, T_j) * 1e3 if d.power_W is None and d.conducts else None})
-        if max(abs(new_tj[k] - tj[k]) for k in tj) < 0.01:
+        # no devices: nothing depends on Tj, one pass is the answer
+        if not tj or max(abs(new_tj[k] - tj[k]) for k in tj) < 0.01:
             tj = new_tj
             break
         tj = new_tj
