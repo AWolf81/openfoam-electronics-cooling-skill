@@ -6,14 +6,27 @@
 # their Table 1 and Section 4.
 #
 # Measured: 9.22 W at base 50.0 °C, ambient 29.02 °C -> R = 2.28 K/W (their Fluent CFD: 2.22 K/W).
-# This skill: hand calc base 50.6 °C (R sink-air 2.34 K/W). CFD coarse, heated through board.power_W (no
-# devices): base 49.4 °C (2.21 K/W, -3 %), board maximum 49.6 °C, all checks pass. (v0.1.0 needed a
-# "heater" device as the heat source: coarse 49.8 °C, normal 50.0 °C.) Compare the base temperature
-# in the report ("Board and base temperature") with 50.0 °C.
+# Acceptance: the measurement's own uncertainty. Their Section 3.2 gives a combined standard
+# uncertainty of 3.28 % on the heat flow (and so on R); the band is ±2u = ±6.6 %, R 2.13-2.43 K/W.
 #
 # The heat came from a water vessel pressed onto the whole base with silicone paste and insulated
-# on every other side. Modelled as a thin aluminium "vessel wall" (the board spreader) over the
-# whole base that carries the measured power itself, and an adiabatic wall at the back.
+# on every other side with 25 mm of expanded rubber foam (aluminium foil outside). Modelled as:
+#   - a thin aluminium "vessel wall" (the board spreader) over the whole base that carries the
+#     measured power itself (board.power_W, no devices);
+#   - the 25 mm foam behind it (solids: vessel_insulation). Without it the heated vessel wall would
+#     face open air and lose heat that in reality had to go through the sink;
+#   - an adiabatic wall only behind the sink (back: {wall: footprint}); above, below and beside it
+#     the back boundary is open, 30 mm behind the base. That is the paper's domain (their Sec. 5.1:
+#     30 mm of air behind the base, the region behind the base excluded; Sec. 5.3: upper and lower
+#     rear boundaries are pressure outlets, only the faces behind the base are adiabatic walls).
+#
+# Results (this skill): hand calc base 50.6 °C (R sink-air 2.34 K/W). CFD coarse: base 51.3 °C,
+# R 2.41 K/W (+5.8 %), all checks pass. CFD normal: see README. Compare the base temperature in the
+# report ("Board and base temperature") with 50.0 °C.
+# Earlier model (back: wall over the whole 450 mm back boundary, 5 mm air gap behind the vessel
+# wall, no foam): R 2.21 / 2.24 K/W (coarse / normal, -2.9 / -1.7 %). That agreement was flattered:
+# 12-14 % of the heat left through the vessel wall's back face into the air gap, which is insulated
+# in reality. Through the sink alone R is ~2.53 K/W (footprint) vs 2.55-2.58 K/W (whole wall).
 #
 #   python3 <skill>/scripts/hand_calc.py validation-plate-fin.yaml
 #   python3 <skill>/scripts/make_case.py validation-plate-fin.yaml cases/plate-fin-coarse --resolution coarse
@@ -30,7 +43,9 @@ heatsink:
   fin: {count: 11, thickness_mm: 3.0, height_mm: 30}
   k: 200                       # CHECK: alloy not stated in the paper (extruded 6063 ~200 W/mK)
   emissivity: 0.05             # bare aluminium, no surface treatment (paper: radiation <= 5 %)
-  back: wall                   # the insulated water vessel behind the base
+  back: {wall: footprint}      # only the insulated vessel is behind the base; open room air
+                               # above and below it. A wall over the whole back boundary (450 mm
+                               # high) held the plume against it: no separate channel plumes.
 
 board:
   label: water vessel wall
@@ -45,11 +60,22 @@ board:
   layers_to_sink:
     - {name: silicone paste, thickness_um: 50, k: 1.0}   # CHECK: not stated; adds only ~0.004 K/W
 
+solids:
+  - name: vessel_insulation    # 25 mm expanded rubber foam covered in aluminium foil (paper Sec. 3)
+    y_mm: [0, 123]
+    z_mm: [0, 100]
+    height_mm: [0, 25]         # behind the vessel wall (x = -2 ... -27 mm)
+    k: 0.036                   # CHECK: foam type not stated; elastomeric foam ~0.033-0.040 W/mK
+    rho: 60
+    cp: 1500
+    emissivity: 0.05           # aluminium foil
+
 airflow: {mode: free}
 
 mesh:
   resolution: coarse
-  clearance_mm: {front: 100, back: 5, sides: 40, below: 100, above: 250}
+  clearance_mm: {front: 100, back: 3, sides: 40, below: 100, above: 250}   # back: behind the
+                               # foam, i.e. 30 mm behind the base as in the paper
 
 solver:
   mode: steady
