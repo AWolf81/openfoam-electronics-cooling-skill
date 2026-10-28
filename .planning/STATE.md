@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-28)
 ## Current Position
 
 Phase: 1 of 5 (Baseline, validation fixes and report)
-Plan: 0 of 7 in current phase
-Status: Ready to execute
-Last activity: 2026-10-28 — Phase 1 planned: 7 plans in 6 waves (figure style and report structure added)
+Plan: 2 of 7 in current phase
+Status: In progress (wave 2: 01-03)
+Last activity: 2026-10-28 — Wave 1 done: 01-01 regression harness, 01-02 emissivity/iteration docs
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 29% (2 of 7 plans in phase 1)
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Recent decisions affecting current work:
 - Setup: work on `develop`, release from `main` only after the user has tried the skill locally.
 - Setup: `.planning/` is excluded from the package hash (README, SKILL.md, package-hash.sh, release workflow).
 - Phase 1: CFD figures use Turbo (smooth rainbow look like the Fluent figures in Kirinčić et al. 2025, without false edges); IR palette only for thermal-camera comparisons.
+- 01-01: regression.sh pins PYTHONHASHSEED=0: make_case.py writes interface patches in set order (order-only differences between runs).
 - Phase 1: report structure 1 Result, 2 Inputs, 3 Results, 4 Comparison with measurement, 5 Time behaviour, 6 Checks.
 
 ### Pending Todos
