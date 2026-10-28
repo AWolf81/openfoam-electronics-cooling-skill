@@ -16,13 +16,14 @@ jobs:
         id: check
         run: |
           set -euo pipefail
+          out=${RUNNER_TEMP:?}   # keep the checkout untouched: every file in it is hashed
           tag=${GITHUB_REF_NAME}; ver=${tag#v}
           [ "$(cat VERSION)" = "$ver" ] || { echo "VERSION is $(cat VERSION), tag is $tag"; exit 1; }
           hash=$(.github/package-hash.sh)
           grep -q "| $ver | \`$hash\` |" README.md || { echo "README.md does not list $hash for $ver"; exit 1; }
-          awk -v v="$ver" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > notes.md
-          grep -q "$hash" notes.md || { echo "CHANGELOG.md section $ver does not list $hash"; exit 1; }
-          .github/package-hash.sh --list > SHA256SUMS
+          awk -v v="$ver" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > "$out/notes.md"
+          grep -q "$hash" "$out/notes.md" || { echo "CHANGELOG.md section $ver does not list $hash"; exit 1; }
+          .github/package-hash.sh --list > "$out/SHA256SUMS"
           {
             echo "## Verify this release"
             echo
@@ -37,12 +38,12 @@ jobs:
             echo
             echo "\`SHA256SUMS\` lists every file; \`sha256sum -c SHA256SUMS\` shows which one differs."
             echo
-            cat notes.md
-          } > release-notes.md
+            cat "$out/notes.md"
+          } > "$out/release-notes.md"
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" SHA256SUMS \
-            --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
+          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/SHA256SUMS" \
+            --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release-notes.md" --verify-tag
