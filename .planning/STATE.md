@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-28)
 ## Current Position
 
 Phase: 1 of 5 (Baseline, validation fixes and report)
-Plan: 2 of 7 in current phase
-Status: In progress (wave 2: 01-03)
-Last activity: 2026-10-28 — Wave 1 done: 01-01 regression harness, 01-02 emissivity/iteration docs
+Plan: 3 of 7 in current phase
+Status: In progress (wave 3: 01-04)
+Last activity: 2026-10-28 — Wave 2 done: 01-03 heat sinks without devices; plate-fin coarse 49.4 °C base, R 2.214 K/W (−2.9 %), all checks pass
 
-Progress: [███░░░░░░░] 29% (2 of 7 plans in phase 1)
+Progress: [████░░░░░░] 43% (3 of 7 plans in phase 1)
 
 ## Performance Metrics
 
@@ -49,11 +49,12 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+- SKILL.md: say that `devices` may be empty when `board.power_W` is set (fold into 01-07 docs).
+- README plate-fin table: normal-mesh row is still the v0.1.0 heater run; rerun normal mesh without devices before 0.2.0.
+- hand_calc.py zero-device output prints "Base under board" and "R_sink-air" twice (cosmetic).
 
 ### Blockers/Concerns
 
-- The heat source in the plate-fin validation is a workaround ("heater" device) until FIX-01.
 - Known issues carried from v0.1.0: warm-up 2× faster than the Infineon measurement; 1.5 K end offset of the lumped warm-up (v2: WARM-01, WARM-02).
 
 ## Session Continuity
