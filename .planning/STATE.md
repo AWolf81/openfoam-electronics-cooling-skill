@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-28)
 ## Current Position
 
 Phase: 1 of 5 (Baseline, validation fixes and report)
-Plan: 5 of 8 in current phase
+Plan: 5 of 9 in current phase
 Status: In progress (wave 5: 01-08)
 Last activity: 2026-10-29 — Wave 4 done: 01-05 Turbo figure style, 2.5x resolution, Fig. 11 layout, vector arrows; user approved colours, asked for resolution, centring and sharp arrows
 
-Progress: [██████░░░░] 63% (5 of 8 plans in phase 1)
+Progress: [█████░░░░░] 56% (5 of 9 plans in phase 1)
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Recent decisions affecting current work:
 - Phase 1: CFD figures use Turbo (smooth rainbow look like the Fluent figures in Kirinčić et al. 2025, without false edges); IR palette only for thermal-camera comparisons.
 - 01-01: regression.sh pins PYTHONHASHSEED=0: make_case.py writes interface patches in set order (order-only differences between runs).
 - 01-05: cfd style = Turbo, 256 levels, point data, 2.5x render, 200 dpi; arrows as vector glyphs every ~8 mm; IR byte-identical. Outputs go to the project folder, never /tmp (/tmp was cleared once).
+- 01-08 (user, 2026-10-29): plate-fin validation uses the wall behind the sink + 25 mm foam (as in the experiment); acceptance = measurement uncertainty ±2u = ±6.6 % (paper: u = 3.28 %), not ±3 %. The earlier whole-wall agreement was flattered by 12-14 % heat leaking out the back.
 - Phase 1: report structure 1 Result, 2 Inputs, 3 Results, 4 Comparison with measurement, 5 Time behaviour, 6 Checks.
 
 ### Pending Todos
