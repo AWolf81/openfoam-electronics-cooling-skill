@@ -127,18 +127,29 @@ heated through its base by a water vessel. The heat flow was measured by calorim
 has no devices: the measured power goes into the board (`board.power_W`), which stands in for the
 vessel wall, and the result is the base temperature.
 
+The vessel was insulated with 25 mm of foam on every other face, so the model has the foam block
+behind the vessel wall, an adiabatic wall only behind the sink (`back: {wall: footprint}`) and
+open air 30 mm behind the base above, below and beside it, as in the paper's own CFD domain.
+
+Acceptance is the measurement's own uncertainty: the paper (Sec. 3.2) gives a combined standard
+uncertainty u = 3.28 % on the heat flow and so on R; the band is ±2u = ±6.6 %, R 2.13–2.43 K/W.
+
 | 9.22 W, ambient 29.02 °C | Base temperature | R sink–air | vs measured |
 |---|---|---|---|
-| Measurement | 50.0 °C | 2.28 K/W | |
+| Measurement (u = 3.28 %) | 50.0 °C | 2.28 K/W | |
 | Paper's CFD (ANSYS Fluent, 4–9 M cells) | | 2.22 K/W | −3 % |
 | This skill: hand calc | 50.6 °C | 2.34 K/W | +3 % |
-| This skill: CFD, coarse (112 k cells) | 49.4 °C | 2.21 K/W | −3 % |
-| This skill v0.1.0: CFD, normal (317 k cells), heater device | 50.0 °C | 2.28 K/W | 0 % |
+| This skill: CFD, coarse (140 k cells) | 51.3 °C | 2.41 K/W | +5.8 % |
+| This skill: CFD, normal (353 k cells) | 51.4 °C | 2.42 K/W | +6.2 % |
 
-Coarse: heated through the board, no devices; all checks pass (energy balance 0.0 %, settled,
-sink rise −6 % vs hand calc); base = mean over the sink's contact face, the board maximum is
-49.6 °C (2.23 K/W). Normal: run with v0.1.0, when the heat source still had to be a "heater"
-device on the board (coarse then 49.8 °C); all checks passed. The YAML header has the commands.
+Both CFD runs: heated through the board, no devices; all checks pass (energy balance 0.0 %,
+settled, sink rise +2/+3 % vs hand calc); base = mean over the sink's contact face. 95 % of the
+heat leaves through the sink, 4 % through the foam, 1 % through the vessel wall's exposed edges.
+The CFD sits at the upper edge of the band, i.e. it slightly under-predicts the sink's heat
+transfer. Earlier model (wall over the whole back boundary, 5 mm air gap behind the vessel wall,
+no foam): 2.21 / 2.24 K/W (−2.9 / −1.7 %), flattered because 12–14 % of the heat left through the
+vessel wall's back face into that gap, which is insulated in reality; through the sink alone R
+was 2.55–2.58 K/W there and is 2.54–2.55 K/W now. The YAML header has the commands.
 
 ## License
 
