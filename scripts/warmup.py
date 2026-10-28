@@ -14,6 +14,8 @@ the converged CFD (or the hand calc), while the curve's shape comes from the fre
 and radiation laws (h grows with temperature rise) and the loss grows with Tj. Running a full
 CFD transient with real heat capacity would take hours for a sink with a ~15 minute time
 constant; this takes a second and lands on the same steady state by construction.
+Without devices (heat put into the board through board.power_W) the model is the board node and
+the sink, and the board temperature takes the junction's place: summary "hottest" is "board".
 """
 
 from __future__ import annotations
@@ -140,7 +142,7 @@ def simulate(cfg: Config, case: Path | None, hours: float, dt: float = 0.05):
     for d in cfg.devices:
         p, dT = P0[d.name] - Q_far[d.name], Tc0[d.name] - Ti0
         # stable for the device node and for the board node, which many such links share
-        R_min = 1.2 * dt / min(C_d[d.name], C_i / len(cfg.devices))
+        R_min = 1.2 * dt / min(C_d[d.name], C_i / max(1, len(cfg.devices)))
         R = dT / p if abs(p) > 1e-9 else R_min
         if R < R_min:
             R = R_min
@@ -183,7 +185,7 @@ def simulate(cfg: Config, case: Path | None, hours: float, dt: float = 0.05):
             rows.append({"t_s": round(t, 2), "T_sink_C": Ts - 273.15, "T_ims_C": Ti - 273.15,
                          **{f"T_case_{k}_C": v - 273.15 for k, v in Tc.items()},
                          **{f"Tj_{d.name}_C": Tc[d.name] - 273.15 + Pd[d.name] * d.rth_jc for d in cfg.devices},
-                         "P_W": sum(Pd.values())})
+                         "P_W": sum(Pd.values()) if cfg.devices else P_board})
         q_di = {k: (Tc[k] - Ti) / R_d[k] for k in Tc}
         q_is = (Ti - Ts) / R_is
         q_sa = k_cal * sink_heat(cfg, Ts)["q"] if Ts > Ta + 1e-6 else 0.0
@@ -199,13 +201,15 @@ def simulate(cfg: Config, case: Path | None, hours: float, dt: float = 0.05):
         step += 1
 
     tj_cols = [f"Tj_{d.name}_C" for d in cfg.devices]
-    hottest = max(tj_cols, key=lambda c: rows[-1][c])
-    T_end = rows[-1][hottest]
+    # no devices: the heat goes into the board, so the board node is the curve to follow
+    col = max(tj_cols, key=lambda c: rows[-1][c]) if tj_cols else "T_ims_C"
+    hottest = col if tj_cols else "board"
+    T_end = rows[-1][col]
     rise = T_end - cfg.ambient_C
 
     def t_frac(f):
         for r in rows:
-            if r[hottest] - cfg.ambient_C >= f * rise:
+            if r[col] - cfg.ambient_C >= f * rise:
                 return r["t_s"]
         return None
 
@@ -236,7 +240,8 @@ def main() -> int:
         w.writerows(rows)
     out.with_suffix(".json").write_text(json.dumps(summ, indent=2, default=float))
     m = lambda s: f"{s / 60:.1f} min" if s is not None else "not reached"  # noqa: E731
-    print(f"Warm-up ({summ['calibrated_to']}-calibrated): hottest {summ['hottest']} ends at "
+    what = "board (no devices)" if summ["hottest"] == "board" else f"hottest {summ['hottest']}"
+    print(f"Warm-up ({summ['calibrated_to']}-calibrated): {what} ends at "
           f"{summ['Tj_end_C']:.1f} C after {a.hours:g} h")
     print(f"  63 % of the rise after {m(summ['t63_s'])}, 90 % after {m(summ['t90_s'])}, "
           f"99 % after {m(summ['t99_s'])}")
