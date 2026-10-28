@@ -36,10 +36,11 @@ import matplotlib  # noqa: E402
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
+import yaml  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from cooling_model import MM, load_config, network  # noqa: E402
+from cooling_model import MM, load_config, load_measurements, network  # noqa: E402
 from make_case import clearances, solids  # noqa: E402
 import warmup  # noqa: E402
 
@@ -697,7 +698,7 @@ def fig_air_sections(cfg, regions, path: Path, clim):
     hi = 6.0
     wia = hi * (wa[1] - wa[0]) / (wa[3] - wa[2])
     wib = hi * (wb[1] - wb[0]) / (wb[3] - wb[2])
-    L, G, R, B, T = 2.1, 0.6, 0.5, 0.15, 1.0
+    L, G, R, B, T = 2.5, 0.6, 0.5, 0.15, 1.0
     W, H = L + wia + G + wib + R, B + hi + T
     fs = _print_fs(W, 16.5)
     fig = plt.figure(figsize=(W, H))
@@ -1034,9 +1035,93 @@ def fig_temperature_path(cfg, hc, cfd, path: Path):
     plt.close(fig)
 
 
+# ---------------------------------------------------------------- measured vs CFD
+
+def sample_measurements(cfg, regions):
+    """CFD temperature at each entry of cfg.measurements (cooling_model.load_measurements).
+    point_mm: the steady field interpolated at that point, in the solid region that contains it
+    (the air last, if no solid does); part: the part's maximum or volume mean. Returns rows
+    {name, where, measured, u, cfd (None if the point is outside every region), note, reference};
+    with a reference entry each row also has d_meas / d_cfd = T - T_reference and u_rel."""
+    pv = _pv()
+    rows = []
+    for m in cfg.measurements:
+        cfd, where = None, ""
+        if m["point"] is not None:
+            pt = pv.PolyData(np.array([m["point"]], dtype=float))
+            for name in sorted(regions, key=lambda n: (n == "air", n)):     # solids first
+                r = pt.sample(regions[name])
+                if r.point_data["vtkValidPointMask"][0]:
+                    cfd, where = float(r.point_data["T"][0]) - 273.15, name
+                    break
+            loc = "(" + ", ".join(f"{v / MM:g}" for v in m["point"]) + ") mm"
+        else:
+            reg = regions.get(m["part"])
+            loc = f"{m['part']} {m['stat']}"
+            if reg is not None:
+                where = m["part"]
+                if m["stat"] == "max":
+                    cfd = float(reg.point_data["T"].max()) - 273.15
+                else:
+                    c_ = reg.point_data_to_cell_data().compute_cell_sizes(length=False, area=False)
+                    cfd = float(np.average(c_.cell_data["T"], weights=c_.cell_data["Volume"])) - 273.15
+        rows.append({"name": m["name"], "loc": loc, "where": where, "measured": m["value_C"],
+                     "u": m["uncertainty_K"], "cfd": cfd, "note": m["note"], "reference": m["reference"]})
+    ref = next((r for r in rows if r["reference"]), None)
+    if ref and ref["cfd"] is not None:
+        for r in rows:
+            if r["cfd"] is not None:
+                r["d_meas"] = r["measured"] - ref["measured"]
+                r["d_cfd"] = r["cfd"] - ref["cfd"]
+                r["u_rel"] = math.hypot(r["u"], ref["u"])
+    return rows
+
+
+def fig_measured_vs_cfd(rows, path: Path):
+    """Measured (with its uncertainty as error bars) and simulated temperature at each measured
+    point, like the paper's Figs. 8-9; with a reference point a second panel compares
+    T - T_reference, which tests the temperature distribution independently of the overall
+    thermal resistance."""
+    ok = [r for r in rows if r["cfd"] is not None]
+    if not ok:
+        return False
+    ref = next((r for r in ok if r["reference"]), None)
+    rel = [r for r in ok if "d_cfd" in r and not r["reference"]]
+    n = 2 if ref and rel else 1
+    fig, axs = plt.subplots(1, n, figsize=(5.2 * n, 4.2), squeeze=False)
+    ax = axs[0, 0]
+    x = np.arange(len(ok))
+    ax.errorbar(x - 0.08, [r["measured"] for r in ok], yerr=[r["u"] for r in ok], fmt="s", color="black",
+                capsize=4, ms=6, label="measured (± uncertainty)")
+    ax.plot(x + 0.08, [r["cfd"] for r in ok], "o", color="#d62728", ms=7, label="CFD")
+    ax.set_xticks(x, [r["name"] for r in ok])
+    ax.set_ylabel("Temperature [°C]")
+    ax.set_title("Absolute")
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=9)
+    if n == 2:
+        ax = axs[0, 1]
+        x = np.arange(len(rel))
+        ax.axhline(0, color="grey", lw=0.8)
+        ax.errorbar(x - 0.08, [r["d_meas"] for r in rel], yerr=[r["u_rel"] for r in rel], fmt="s",
+                    color="black", capsize=4, ms=6, label="measured")
+        ax.plot(x + 0.08, [r["d_cfd"] for r in rel], "o", color="#d62728", ms=7, label="CFD")
+        ax.set_xticks(x, [r["name"] for r in rel])
+        ax.set_ylabel(f"T − T({ref['name']}) [K]")
+        ax.set_title(f"Relative to {ref['name']}")
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=9)
+    fig.suptitle("Measured and simulated temperatures at the measured points")
+    fig.tight_layout()
+    fig.savefig(path, dpi=160)
+    plt.close(fig)
+    return True
+
+
 # ---------------------------------------------------------------- document
 
-def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assumptions, has_video):
+def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assumptions, has_video,
+               meas=None):
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Cm, Pt
@@ -1200,6 +1285,45 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
                  if cfd.get("Q_rad") is not None else "not modelled"],
                 ["Mean sink temperature", f"{cfd['T_sink_C']:.1f} C (hand calc {hc['T_sink_C']:.1f} C)"]]
         table(rows, ["Quantity", "CFD"], [6, 11])
+        if meas:
+            doc.add_heading("Comparison with measurement", 2)
+            figure("measured", "measured temperatures (error bars: their uncertainty) and the CFD at the "
+                   "same points" + (", absolute and relative to the reference point." if any(
+                       "d_cfd" in r for r in meas) else "."), 15)
+            has_rel = any("d_cfd" in r for r in meas)
+            ref = next((r for r in meas if r["reference"]), None)
+            mrows = []
+            sg = lambda v: f"{v + 0.0:+.2f}".replace("-0.00", "+0.00")  # noqa: E731  (no "-0.00")
+            for r in meas:
+                c_ = r["cfd"]
+                row = [r["name"], r["note"] or r["loc"],
+                       f"{r['measured']:.2f} ± {r['u']:.2f}", f"{c_:.2f}" if c_ is not None else "outside the model",
+                       sg(c_ - r["measured"]) if c_ is not None else "-"]
+                if has_rel:
+                    row += ([sg(r["d_meas"]), sg(r["d_cfd"]), sg(r["d_cfd"] - r["d_meas"])]
+                            if "d_cfd" in r and not r["reference"] else ["ref", "ref", "-"])
+                mrows.append(row)
+            head = ["Point", "Where", "Measured (C)", "CFD (C)", "Δ (K)"]
+            if has_rel:
+                head += [f"Meas. − {ref['name']} (K)", f"CFD − {ref['name']} (K)", "Δ (K)"]
+            table(mrows, head, [1.4, 4.0, 2.4, 1.6, 1.3, 2.1, 2.1, 1.3][:len(head)])
+            doc.paragraphs[-1].text = ("Where the CFD was read: " + "; ".join(
+                f"{r['name']} {r['loc']}" + (f" in {r['where']}" if r["where"] and r["where"] != r["loc"].split()[0]
+                                             else "") for r in meas) + ".")
+            got = [r for r in meas if r["cfd"] is not None]
+            if got:
+                da = [r["cfd"] - r["measured"] for r in got]
+                inside = sum(abs(d) <= r["u"] for d, r in zip(da, got))
+                txt = (f"Absolute: CFD minus measured {sg(min(da))} to {sg(max(da))} K; {inside} of {len(got)} "
+                       "points within the measurement uncertainty.")
+                rr = [r for r in got if "d_cfd" in r and not r["reference"]]
+                if rr:
+                    dr = [r["d_cfd"] - r["d_meas"] for r in rr]
+                    ins = sum(abs(d) <= r["u_rel"] for d, r in zip(dr, rr))
+                    txt += (f" Relative to {ref['name']} (the shape of the temperature field, independent of the "
+                            f"overall thermal resistance): {sg(min(dr))} to {sg(max(dr))} K; {ins} of {len(rr)} "
+                            "within the combined uncertainty of the two readings.")
+                doc.add_paragraph(txt)
     else:
         sh = hc["sink"]
         table([["Sink mean temperature", f"{hc['T_sink_C']:.1f} C"],
@@ -1262,6 +1386,8 @@ def main() -> int:
     ap.add_argument("--style", choices=["cfd", "ir", "3d"], help="CFD figures and video: Turbo colour "
                     "map, smooth fields, 3D view (cfd, default; 3d is an old name for it) or thermal-camera "
                     "views of both sides, to compare with a camera image (ir); also report.style in the YAML")
+    ap.add_argument("--measurements", help="take the measurements: list from this YAML instead of the "
+                    "case's (e.g. a validation asset that gained measured points after the run)")
     a = ap.parse_args()
     src = Path(a.source)
     case = src if src.is_dir() else None
@@ -1271,6 +1397,8 @@ def main() -> int:
     STYLE.update({k: rep[k] for k in ("style", "view_up", "mirror", "ir_floor_K", "ir_range", "ir_blur_mm",
                                       "ir_edges", "ir_board_blur_mm", "cfd_levels")
                   if k in rep})
+    if a.measurements:   # e.g. an updated asset: its measurements: list, the rest from the case
+        cfg.measurements = load_measurements(yaml.safe_load(Path(a.measurements).read_text()) or {})
     if a.style:
         STYLE["style"] = a.style
     if STYLE["style"] == "3d":
@@ -1291,7 +1419,7 @@ def main() -> int:
             "path": figdir / "temperature-path.png", "warmup": figdir / "warmup.png",
             "cfd_solids": figdir / "cfd-solids.png", "plume": figdir / "cfd-plume.png",
             "air_sections": figdir / "cfd-air-sections.png", "velocity": figdir / "cfd-velocity.png",
-            "sink_local": figdir / "cfd-sink-local.png"}
+            "sink_local": figdir / "cfd-sink-local.png", "measured": figdir / "measured-vs-cfd.png"}
     fig_layout(cfg, figs["layout"])
     fig_assembly_3d(cfg, figs["assembly"])
 
@@ -1305,7 +1433,7 @@ def main() -> int:
         w.writerows(rows)
     fig_warmup(cfg, rows, summ, figs["warmup"])
 
-    cfd, gates, verdict, regions = None, [], "", {}
+    cfd, gates, verdict, regions, meas = None, [], "", {}, None
     if has_cfd:
         gates, verdict = gates_from_report(case)
         regions = load_cfd(case)
@@ -1339,6 +1467,10 @@ def main() -> int:
             fig_velocity(cfg, regions, figs["velocity"])
         if STYLE["style"] != "ir" and "heatsink" in regions:
             fig_sink_local(cfg, regions, figs["sink_local"])
+        if cfg.measurements:
+            meas = sample_measurements(cfg, regions)
+            if not fig_measured_vs_cfd(meas, figs["measured"]):
+                meas = None
     fig_temperature_path(cfg, hc, cfd if cfd and (cfd.get("Tj_C") if cfg.devices else cfd.get("T_base_C"))
                          else None, figs["path"])
 
@@ -1349,7 +1481,7 @@ def main() -> int:
 
     docx = out / "thermal-report.docx"
     build_docx(docx, cfg, hc, meta, gates, verdict, figs, cfd, summ,
-               check_assumptions(cfg_path), has_video)
+               check_assumptions(cfg_path), has_video, meas)
     pdf = to_pdf(docx)
     if case:   # the configs that reproduce this run, next to its report
         for f in ("case.yaml", "case-meta.json", "report.md"):

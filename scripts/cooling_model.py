@@ -69,6 +69,7 @@ class Config:
     raw: dict = field(repr=False, default_factory=dict)
     solids: list = field(default_factory=list)     # extra solid parts (load_solids)
     airflow: dict = field(default_factory=lambda: {"mode": "free"})   # load_airflow
+    measurements: list = field(default_factory=list)   # load_measurements (report only)
 
 
 def _req(d: dict, key: str, where: str):
@@ -228,6 +229,7 @@ def load_config(path: str | Path) -> Config:
                  sink, ims, tim, devices, electrical, mesh, solver, raw)
     cfg.solids = load_solids(raw, {d.name for d in devices})
     cfg.airflow = load_airflow(raw)
+    cfg.measurements = load_measurements(raw)
     _check_footprints(cfg)
     return cfg
 
@@ -256,6 +258,64 @@ def load_back(v, W: float, L: float):
             raise ValueError("heatsink.back.wall: y_mm and z_mm need two different values each")
         return "partial", (y0 * MM, y1 * MM, z0 * MM, z1 * MM)
     raise ValueError("heatsink.back: free, wall, {wall: footprint} or {wall: {y_mm: [a, b], z_mm: [c, d]}}")
+
+
+def load_measurements(raw: dict) -> list:
+    """Measured temperatures to compare the CFD with (optional; only the report reads them):
+
+      measurements:
+        - name: TC1
+          point_mm: [7, 13.5, 50]  # x, y, z in the model frame (x out of the base, y across
+                                   #   the fins, z up; the sink's back face is x = 0)
+          value_C: 49.8
+          uncertainty_K: 0.2       # default 0.2 (a class 1 thermocouple after calibration)
+          note: fin 2, 1 mm above the base, mid-length
+        - name: sink max
+          part: heatsink           # instead of a point: the part's maximum or volume mean
+          stat: max                # max | mean (default mean)
+          value_C: 51.0
+        - name: TCb
+          point_mm: [0.5, 61.5, 50]
+          value_C: 50.0
+          reference: true          # at most one: the report also gives T - T_reference for
+                                   #   measurement and CFD (tests the distribution apart from R)
+
+    Returns a list of dicts: name, point (m, tuple) or part + stat, value_C, uncertainty_K,
+    note, reference. Without the key: an empty list (no figure, nothing else changes)."""
+    out = []
+    items = raw.get("measurements") or []
+    if not isinstance(items, list):
+        raise ValueError("measurements: a list of {name, point_mm | part, value_C, uncertainty_K}")
+    for i, m in enumerate(items):
+        where = f"measurements[{i}] ('{m.get('name', '?')}')" if isinstance(m, dict) else f"measurements[{i}]"
+        if not isinstance(m, dict):
+            raise ValueError(f"{where}: a mapping with name, point_mm or part, value_C")
+        name = str(_req(m, "name", where))
+        if ("point_mm" in m) == ("part" in m):
+            raise ValueError(f"{where}: give either point_mm: [x, y, z] or part: <region name>")
+        r = {"name": name, "point": None, "part": None, "stat": None,
+             "value_C": float(_req(m, "value_C", where)),
+             "uncertainty_K": float(m.get("uncertainty_K", 0.2)),
+             "note": str(m.get("note", "")), "reference": bool(m.get("reference", False))}
+        if r["uncertainty_K"] < 0:
+            raise ValueError(f"{where}: uncertainty_K must be >= 0")
+        if "point_mm" in m:
+            p = m["point_mm"]
+            if not (isinstance(p, (list, tuple)) and len(p) == 3
+                    and all(isinstance(v, (int, float)) for v in p)):
+                raise ValueError(f"{where}: point_mm must be [x, y, z] in mm")
+            r["point"] = tuple(float(v) * MM for v in p)
+        else:
+            r["part"] = str(m["part"])
+            r["stat"] = m.get("stat", "mean")
+            if r["stat"] not in ("mean", "max"):
+                raise ValueError(f"{where}: stat must be mean or max")
+        out.append(r)
+    if len({r["name"] for r in out}) != len(out):
+        raise ValueError("measurements: names must be unique")
+    if sum(r["reference"] for r in out) > 1:
+        raise ValueError("measurements: at most one entry can be the reference")
+    return out
 
 
 AIRFLOW_DIRECTIONS = {   # inlet boundary and flow direction of a fan

@@ -72,6 +72,28 @@ solids:
 
 airflow: {mode: free}
 
+# Thermocouples (paper Sec. 3.1, Fig. 2; readings Table 1, K-type +-0.2 K). Conversion to the model
+# frame (x out of the base, back face x = 0, fins x = 6...36 mm; y across the fins, fin i at
+# y = 12 i ... 12 i + 3 mm; z up, sink bottom z = 0):
+#   - "representative inner fin": Fig. 2a marks the second fin from the side -> fin 1, sampled
+#     at its mid-thickness y = 13.5 mm (the temperature across a 3 mm Al fin is uniform to mK);
+#   - TC1, TC2: mid-length (L = 50 mm -> z = 50), 1 and 15 mm from the base surface
+#     (H -> x = 6 + H: 7 and 21 mm);
+#   - TC3, TC4: 29 mm from the base surface (x = 35), 1 and 99 mm from the fin bottom (z = 1, 99);
+#   - TCb: "at the junction between the vessel and the heat sink base"; Fig. 2a draws it at the top
+#     edge of the base, mid-width; its depth is not dimensioned -> 0.5 mm inside the base, y = 61.5,
+#     z = 90 (10 mm in from the top edge). In the CFD the contact face spans ~0.3 K bottom to top.
+# The experiment held the base at 50.0 C and measured 9.22 W; this model puts in the 9.22 W, so
+# its temperatures run ~1.4 K high (R +6 %). T - T(TCb) tests the temperature distribution on its
+# own; the report gives both.
+measurements:
+  - {name: TCb, point_mm: [0.5, 61.5, 90], value_C: 50.0, uncertainty_K: 0.2, reference: true,
+     note: base at the vessel junction}
+  - {name: TC1, point_mm: [7, 13.5, 50], value_C: 49.8, uncertainty_K: 0.2, note: "fin 1, H 1 mm, L 50 mm"}
+  - {name: TC2, point_mm: [21, 13.5, 50], value_C: 49.7, uncertainty_K: 0.2, note: "fin 1, H 15 mm, L 50 mm"}
+  - {name: TC3, point_mm: [35, 13.5, 1], value_C: 49.4, uncertainty_K: 0.2, note: "fin 1, H 29 mm, L 1 mm"}
+  - {name: TC4, point_mm: [35, 13.5, 99], value_C: 49.6, uncertainty_K: 0.2, note: "fin 1, H 29 mm, L 99 mm"}
+
 mesh:
   resolution: coarse
   clearance_mm: {front: 100, back: 3, sides: 40, below: 100, above: 250}   # back: behind the
