@@ -21,7 +21,7 @@ once the user has tried the skill locally.
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Baseline and validation fixes** - Regression harness against v0.1.0; heat sinks without devices; emissivity and iteration guidance
+- [ ] **Phase 1: Baseline, validation fixes and report** - Regression harness; heat sinks without devices; emissivity/iteration guidance; paper-style figures and report structure
 - [ ] **Phase 2: Altitude** - Ambient pressure in the hand calc and the CFD (PRD R1)
 - [ ] **Phase 3: Loss consistency** - Loss at the CFD's Tj, a gate, and `--power-from` reruns (PRD R2)
 - [ ] **Phase 4: Limits and worst-case corners** - `limits:`, corner sweep, worst corner to CFD (PRD R3)
@@ -29,20 +29,27 @@ once the user has tried the skill locally.
 
 ## Phase Details
 
-### Phase 1: Baseline and validation fixes
-**Goal**: A regression check that proves later phases leave v0.1.0 results unchanged, and the three fixes from the plate-fin validation
+### Phase 1: Baseline, validation fixes and report
+**Goal**: A regression check that proves later phases leave v0.1.0 results unchanged, the three fixes from the plate-fin validation, and reports whose figures and structure match good validation practice (Kirinčić et al. 2025 figure types, Turbo colour map, answer first)
 **Depends on**: Nothing (first phase)
-**Requirements**: BASE-01, BASE-02, FIX-01, FIX-02, FIX-03
+**Requirements**: BASE-01, FIX-01, FIX-02, FIX-03, REP-01, REP-02, REP-03
 **Success Criteria** (what must be TRUE):
   1. One command compares hand-calc output and generated case files of every eval and asset against v0.1.0 and lists differences
   2. The plate-fin validation runs with the heat put into the base directly, no "heater" device, and still gives 2.28 K/W ± 3 %
   3. SKILL.md tells the agent about per-device emissivity and extra iterations for low-power free convection
-**Research**: Unlikely (internal code)
-**Plans**: 2 plans
+  4. CFD figures use Turbo, smooth fields and a paper-style legend; the user approved them against the paper's Figs. 10–12
+  5. Reports show air sections, velocity vectors, a local-scale sink view and measured vs simulated, in the documented six-section structure
+**Research**: Done during planning (paper figures, report practice, colour maps)
+**Plans**: 7 plans in 6 waves
 
 Plans:
-- [ ] 01-01: Regression script (`.github/regression.sh`, outside the package) and baseline run
-- [ ] 01-02: Board-only heat source; emissivity and iteration guidance; update `assets/validation-plate-fin.yaml`
+- [ ] 01-01: Regression script (`.github/regression.sh`) and clean first run — wave 1
+- [ ] 01-02: Emissivity and iteration guidance (FIX-02, FIX-03) — wave 1
+- [ ] 01-03: Heat sinks without devices: model, hand calc, case, report; plate-fin re-validated (FIX-01) — wave 2
+- [ ] 01-04: Warm-up and Word report without devices — wave 3
+- [ ] 01-05: Turbo figure style, `report.style: cfd | ir`, user check against the paper (REP-01) — wave 4
+- [ ] 01-06: Air sections, velocity vectors, local-scale sink, measured vs simulated (REP-02) — wave 5
+- [ ] 01-07: Report structure and figure rules (REP-03) — wave 6
 
 ### Phase 2: Altitude
 **Goal**: Correct results away from sea level
@@ -112,7 +119,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 1. Baseline and validation fixes | v0.2.0 | 0/2 | Not started | - |
+| 1. Baseline, validation fixes and report | v0.2.0 | 0/7 | Planned | - |
 | 2. Altitude | v0.2.0 | 0/2 | Not started | - |
 | 3. Loss consistency | v0.2.0 | 0/2 | Not started | - |
 | 4. Limits and worst-case corners | v0.2.0 | 0/3 | Not started | - |

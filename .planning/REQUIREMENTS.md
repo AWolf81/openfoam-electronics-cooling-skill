@@ -18,6 +18,12 @@ calculation and energy balances, and the report says what was assumed.
 - [ ] **FIX-02**: SKILL.md and the example YAML say that `emissivity` is set per device and that the 0.9 default suits mould compound, not metal or foil
 - [ ] **FIX-03**: SKILL.md advises more iterations (about 3000) for low-power free convection when "heat flow settled" just fails
 
+### Report and figures
+
+- [ ] **REP-01**: CFD figures use the Turbo colour map with smooth point-interpolated fields and a "Temperature [°C]" legend, aligned with Kirinčić et al. 2025 Figs. 10–12 but smoother; `report.style: cfd` (default) or `ir` (thermal-camera comparisons)
+- [ ] **REP-02**: The report shows air section planes (mid fin height, mid width), velocity vectors, a local-scale 3D heat-sink view, and simulated vs measured values when the YAML has `measurements:`
+- [ ] **REP-03**: Reports follow `references/report-structure.md`: 1 Result, 2 Inputs, 3 Results, 4 Comparison with measurement, 5 Time behaviour, 6 Checks, each figure shown only when its condition holds
+
 ### Altitude (PRD R1)
 
 - [ ] **ENV-01**: YAML `ambient.altitude_m` or `ambient.pressure_Pa` (mutually exclusive, default 101325 Pa; ISA conversion)
@@ -81,18 +87,20 @@ calculation and energy balances, and the report says what was assumed.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BASE-01, BASE-02 | Phase 1 | Pending |
+| BASE-01 | Phase 1 | Pending |
+| BASE-02 | Phase 5 | Pending |
 | FIX-01, FIX-02, FIX-03 | Phase 1 | Pending |
+| REP-01, REP-02, REP-03 | Phase 1 | Pending |
 | ENV-01 – ENV-05 | Phase 2 | Pending |
 | LOSS-01 – LOSS-04 | Phase 3 | Pending |
 | LIM-01 – LIM-05 | Phase 4 | Pending |
 | REL-01 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 20 total
-- Mapped to phases: 20
+- v1 requirements: 23 total
+- Mapped to phases: 23
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-10-28*
-*Last updated: 2026-10-28 after GSD planning set up from the v0.2 PRD*
+*Last updated: 2026-10-28 after Phase 1 planning (figure style and report structure added)*
