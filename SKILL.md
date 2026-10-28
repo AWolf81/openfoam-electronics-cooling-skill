@@ -211,11 +211,19 @@ parts, a vertical air section through the devices, temperature along the heat pa
 warm-up curve. Look at the figures before sending the report; a wrong camera or colour scale
 is easy to miss in a PDF.
 
-The CFD figure and the video default to a thermal-camera look (`--style ir`): the component
-side and the fin side face-on, in a camera palette, ranged like a camera from the coldest to
-the hottest point shown (fixed over the whole video, so it never saturates). `--style 3d` gives
-the 3D view instead. To compare with a photo or IR image of the real board, set
-`report: {view_up: "-z", mirror: true, ir_floor_K: 8, ir_range: [lo, hi]}` in the YAML:
+The CFD figures and the video default to the CFD style (`report.style: cfd`, or `--style cfd`;
+`3d` is still accepted as its old name): matplotlib's Turbo colour map (blue cold to red hot, the
+order of the Fluent rainbow in papers, but with smooth lightness, so no false edges), point-
+interpolated fields in 256 levels (`cfd_levels: 64` gives visible bands), legend "Temperature
+[°C]" on the left. The vertical air section and the video run from ambient to the hottest value
+(global scale); the 3D view of the solids from their coldest to their hottest point (labelled
+"local scale"). Still figures are rendered at 2.5x and saved at 200 dpi. Use `report.style: ir`
+only to compare with a thermal-camera image, where the palette and the scale must match the
+camera's: the component side and the fin side face-on, in a camera palette, ranged from ambient
+plus `ir_floor_K` to the hottest point shown (fixed over the whole video, so it never
+saturates), or fixed with `ir_range: [lo, hi]` in °C (leave it out for the automatic range).
+To compare with a photo or IR image of the real board, set
+`report: {style: ir, view_up: "-z", mirror: true, ir_floor_K: 8, ir_range: [lo, hi]}` in the YAML:
 which way is up on screen, a left-right flip (the model is often the mirror image of the
 board seen from its component side), the bottom of the scale above ambient (a camera sees
 the room a few K above the air), or a fixed scale to match the camera's. The camera look blurs
