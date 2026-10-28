@@ -584,6 +584,16 @@ def _flow_arrows(pv, sl, n=900, moving_only=False):
     return pts.glyph(orient="U", scale=False, factor=4.0)
 
 
+def back_text(s) -> str:
+    """heatsink.back for the inputs table."""
+    if s["back"] != "partial":
+        return s["back"]
+    y0, y1, z0, z1 = (v / MM for v in s["back_wall"])
+    if (y0, y1, z0, z1) == (0.0, s["width"] / MM, 0.0, s["length"] / MM):
+        return "wall behind the sink only, open air around it"
+    return f"wall over y {y0:g}-{y1:g} mm, z {z0:g}-{z1:g} mm, open air around it"
+
+
 def fig_cfd_plume(cfg, regions, path: Path, clim=None):
     if STYLE["style"] == "ir":
         return fig_cfd_plume_ir(cfg, regions, path)
@@ -963,7 +973,7 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
         inp += [["Heat input", f"{hc['P_tot']:.2f} W into the board (no devices)"]]
     inp += [["Heat sink", f"{s['width'] / MM:g} x {s['length'] / MM:g} mm, base {s['base'] / MM:g} mm, "
                          f"{s['n_fins']} fins {s['fin_t'] / MM:g} x {s['fin_h'] / MM:g} mm (gap {s['gap'] / MM:.1f} mm), "
-                         f"k {s['k']:g} W/mK, emissivity {s['emissivity']:g}, back {s['back']}"],
+                         f"k {s['k']:g} W/mK, emissivity {s['emissivity']:g}, back {back_text(s)}"],
            ["Board", f"{im['label']}, {im['size'][0] / MM:g} x {im['size'][1] / MM:g} mm"],
            ["  part to spreader", "; ".join(layer_text(l) for l in im["under"]) or "-"],
            ["  spreader (meshed)", f"{spreader_label(cfg)}, k {im['spreader']['k']:g} W/mK"],

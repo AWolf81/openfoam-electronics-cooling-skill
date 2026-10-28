@@ -36,6 +36,10 @@ postProcessing/<region>/<function>/<startTime>/*.dat
 Regions: `air` (fluid), `heatsink`, `ims`, one per device. `splitMeshRegions` names the
 interfaces `<region>_to_<neighbour>`: `air_to_heatsink`, `heatsink_to_air`, `heatsink_to_ims`,
 `ims_to_q1`, `q1_to_ims`, ... Outer patches (`back front left right bottom top`) stay with the air.
+With `heatsink.back: {wall: footprint}` (or a `{wall: {y_mm, z_mm}}` rectangle) the faces of
+`back` inside the rectangle become a wall patch `back_wall` (topoSet faceSet `backWallFaces` +
+`createPatch -overwrite`, before `splitMeshRegions`); the rectangle edges are grid lines, so the
+split is exact. `back: wall` keeps the whole `back` patch as a wall, as before.
 
 Coordinates: z up (gravity -z), fins along z, y across the fins, x out of the fins; IMS and
 devices at x < 0 on the back of the base.

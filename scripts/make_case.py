@@ -10,7 +10,8 @@ What it builds (geometry convention in cooling_model.py):
   * buoyant air (laminar, or k-omega SST with airflow.turbulence), open boundaries on all
     sides; with airflow.mode forced one of them is a uniform fan inlet (along the fins, onto
     the component side, or onto the fin tips)
-    (or a wall behind the sink when heatsink.back = wall);
+    (or a wall over the whole back boundary when heatsink.back = wall, or over a rectangle of
+    it, e.g. only behind the sink, with heatsink.back = {wall: footprint});
   * fvDOM surface radiation in the air (transparent air, grey diffuse surfaces);
   * the board (region "ims") meshed as its spreader plate (Al of an IMS, Cu core, ...);
     the layers from each part down to it and from it down to the sink as thin thermal
@@ -180,6 +181,10 @@ def build_grid(cfg: Config, res: str):
             xs += [x0, x1]
             ys += [y0, y1]
             zs += [z0, z1]
+    rect = back_wall_rect(cfg)
+    if rect:      # grid lines on the wall rectangle's edges: the patch split is exact
+        ys += list(rect[:2])
+        zs += list(rect[2:])
     tol = 0.2 * MM
     xs, ys, zs = _merge(xs, tol), _merge(ys, tol), _merge(zs, tol)
 
@@ -191,6 +196,28 @@ def build_grid(cfg: Config, res: str):
     gy = axis_segments(ys, 0.0, s["width"], dy, R["grow"], cap, 2)
     gz = axis_segments(zs, 0.0, s["length"], dz, R["grow"], cap, 2)
     return {"x": (xs, gx), "y": (ys, gy), "z": (zs, gz)}, boxes
+
+
+def back_wall_rect(cfg: Config):
+    """Wall rectangle (y0, y1, z0, z1) in m on the back boundary for heatsink.back partial,
+    clipped to the domain; None for free and wall."""
+    if cfg.sink["back"] != "partial":
+        return None
+    clr = clearances(cfg)
+    y0, y1, z0, z1 = cfg.sink["back_wall"]
+    ylo, yhi = -clr["sides"], cfg.sink["width"] + clr["sides"]
+    zlo, zhi = -clr["below"], cfg.sink["length"] + clr["above"]
+    r = (max(y0, ylo), min(y1, yhi), max(z0, zlo), min(z1, zhi))
+    if r[1] - r[0] <= 0 or r[3] - r[2] <= 0:
+        raise ValueError("heatsink.back.wall: the rectangle lies outside the domain")
+    return r
+
+
+def back_patches(cfg: Config):
+    """(open patch names, name of the wall patch on the back boundary or None)."""
+    mode = cfg.sink["back"]
+    opens = ["front", "left", "right", "bottom", "top"] + ([] if mode == "wall" else ["back"])
+    return opens, {"wall": "back", "partial": "back_wall"}.get(mode)
 
 
 def snap_boxes(boxes, grid):
@@ -323,6 +350,34 @@ boundary
         source  setToCellZone;
         set     airSet;
     }""")
+    rect = back_wall_rect(cfg)
+    if rect:
+        # heatsink.back partial: the faces of the back boundary inside the rectangle become the
+        # wall patch back_wall (createPatch, before splitMeshRegions); the rest stays 'back'.
+        def snap(v, pts):
+            return min(pts, key=lambda q: abs(q - v))
+        ry0, ry1 = snap(rect[0], grid["y"][0]), snap(rect[1], grid["y"][0])
+        rz0, rz1 = snap(rect[2], grid["z"][0]), snap(rect[3], grid["z"][0])
+        actions.append(f"""    {{
+        name    backWallFaces;
+        type    faceSet;
+        action  new;
+        source  boxToFace;
+        box     ({x0 - eps:.9g} {ry0 - eps:.9g} {rz0 - eps:.9g}) ({x0 + eps:.9g} {ry1 + eps:.9g} {rz1 + eps:.9g});
+    }}""")
+        foam(case / "system/createPatchDict", "createPatchDict", """
+pointSync false;
+
+patches
+(
+    {
+        name            back_wall;
+        patchInfo       { type wall; }
+        constructFrom   set;
+        set             backWallFaces;
+    }
+);
+""")
     foam(case / "system/topoSetDict", "topoSetDict", "actions\n(\n" + "\n".join(actions) + "\n);")
 
 
@@ -548,7 +603,8 @@ def write_case(case: Path, cfg: Config, res: str, iterations: int | None = None)
     }}""")
     # Parts that leave the domain (far_end): integral of T over their boundary faces, so the
     # heat leaving there, h (integral T dA - T_inf A), enters the energy balance.
-    outer = ["front", "left", "right", "bottom", "top"] + ([] if cfg.sink["back"] == "wall" else ["back"])
+    open_names, back_wall_patch = back_patches(cfg)
+    outer = open_names + (["back_wall"] if back_wall_patch == "back_wall" else [])
     lo = [grid[a][0][0] for a in "xyz"]
     hi = [grid[a][0][-1] for a in "xyz"]
     far_end = {}
@@ -589,7 +645,7 @@ def write_case(case: Path, cfg: Config, res: str, iterations: int | None = None)
         executeInterval 50;
         writeControl    writeTime;     // the field itself only at regular writes
     }""")
-    for pname in ["front", "left", "right", "bottom", "top"] + ([] if cfg.sink["back"] == "wall" else ["back"]):
+    for pname in open_names:
         funcs.append(f"""    massFlow_{pname}
     {{
         type            surfaceFieldValue;
@@ -757,10 +813,9 @@ sootModel       none;
         foam(case / "constant/air/radiationProperties", "radiationProperties",
              "radiation       off;\nradiationModel  none;")
 
-    open_names = ["front", "left", "right", "bottom", "top"] + ([] if cfg.sink["back"] == "wall" else ["back"])
     open_re = '"(' + "|".join(open_names) + ')"'
     walls_air = '"air_to_.*"' + (" " if cfg.sink["back"] != "wall" else "")
-    back_wall = cfg.sink["back"] == "wall"
+    back_wall = back_wall_patch      # wall patch on the back boundary: 'back', 'back_wall' or None
 
     def field(region, name, cls, dims, internal, bcs):
         body = f"dimensions      {dims};\n\ninternalField   {internal};\n\nboundaryField\n{{\n"
@@ -784,7 +839,7 @@ sootModel       none;
     if inlet:
         T_air_bcs.append((inlet, f"type            fixedValue;\n            value           uniform {Ta:g};"))
     if back_wall:
-        T_air_bcs.append(("back", "type            zeroGradient;"))
+        T_air_bcs.append((back_wall, "type            zeroGradient;"))
     T_air_bcs.append((walls_air, coupled_T("fluidThermo", qr="qr" if rad else None, Tinit=Ta)))
     for p in cfg.solids:     # insulation etc. between a part and the air, on both sides
         if p["air_layers"]:
@@ -795,7 +850,7 @@ sootModel       none;
     U_bcs = [(open_re, "type            pressureInletOutletVelocity;\n            value           uniform (0 0 0);"),
              (walls_air, "type            noSlip;")]
     if back_wall:
-        U_bcs.append(("back", "type            noSlip;"))
+        U_bcs.append((back_wall, "type            noSlip;"))
     if inlet:
         U_bcs.append((inlet, f"type            fixedValue;\n            value           uniform {U_in};"))
     # along the fins the whole domain starts in the stream; onto the parts it starts at rest
@@ -809,7 +864,7 @@ sootModel       none;
                       "            value           uniform 1e5;"),
             (walls_air, "type            fixedFluxPressure;\n            value           uniform 1e5;")]
     if back_wall:
-        prgh.append(("back", "type            fixedFluxPressure;\n            value           uniform 1e5;"))
+        prgh.append((back_wall, "type            fixedFluxPressure;\n            value           uniform 1e5;"))
     if inlet:
         prgh.append((inlet, "type            fixedFluxPressure;\n            value           uniform 1e5;"))
     field("air", "p_rgh", "volScalarField", "[1 -1 -2 0 0 0 0]", "uniform 1e5", prgh)
@@ -820,7 +875,7 @@ sootModel       none;
         k_in = 1.5 * (turb["intensity"] * af["velocity"]) ** 2
         w_in = math.sqrt(k_in) / (0.09 ** 0.25 * turb["length_mm"] * MM)
         k_amb, w_amb = 1e-5, 1.0
-        walls = [walls_air] + (["back"] if back_wall else [])
+        walls = [walls_air] + ([back_wall] if back_wall else [])
         def turb_field(name, inl, amb, wall, internal):
             bcs = [(open_re, f"type            inletOutlet;\n            inletValue      uniform {amb:g};\n"
                              f"            value           uniform {amb:g};")]
@@ -1026,6 +1081,7 @@ relaxationFactors { equations { "h.*" 1; } }
 """)
 
     # ---- scripts and metadata
+    create_patch = "run createPatch -overwrite\n" if back_wall_patch == "back_wall" else ""
     (case / "Allrun").write_text(f"""#!/bin/sh
 # Run inside the OpenFOAM v2412 environment (scripts/of.sh <case> ./Allrun).
 cd "${{0%/*}}" || exit
@@ -1037,7 +1093,7 @@ run()  {{ step runApplication "$@"; }}
 
 run blockMesh
 run topoSet
-run splitMeshRegions -cellZones -overwrite
+{create_patch}run splitMeshRegions -cellZones -overwrite
 for r in {' '.join(regions)}; do
     run -s "$r" checkMesh -region "$r" -constant
 done

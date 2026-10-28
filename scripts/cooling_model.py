@@ -179,8 +179,9 @@ def load_config(path: str | Path) -> Config:
         "fin_h": _req(fin, "height_mm", "heatsink.fin") * MM,
         "k": hs.get("k", 200.0),
         "emissivity": hs.get("emissivity", 0.85),
-        "back": hs.get("back", "free"),        # free | wall
+        "back": hs.get("back", "free"),        # free | wall | partial (see load_back)
     }
+    sink["back"], sink["back_wall"] = load_back(sink["back"], sink["width"], sink["length"])
     if sink["n_fins"] < 2:
         raise ValueError("need at least 2 fins")
     sink["gap"] = (sink["width"] - sink["n_fins"] * sink["fin_t"]) / (sink["n_fins"] - 1)
@@ -229,6 +230,32 @@ def load_config(path: str | Path) -> Config:
     cfg.airflow = load_airflow(raw)
     _check_footprints(cfg)
     return cfg
+
+
+def load_back(v, W: float, L: float):
+    """heatsink.back -> (mode, rectangle). What closes the back boundary of the domain (the plane
+    behind the board, mesh.clearance_mm.back behind the furthest part):
+
+      back: free                     open air all over (default)
+      back: wall                     an adiabatic wall over the whole back boundary (a mounting
+                                     plate or enclosure wall behind the sink)
+      back: {wall: footprint}        a wall only behind the sink (its width x length), open air
+                                     on the rest (a heater or vessel only behind the base)
+      back: {wall: {y_mm: [a, b], z_mm: [c, d]}}   a wall over that rectangle (sink coordinates),
+                                     open air on the rest
+
+    mode is 'free', 'wall' or 'partial'; the rectangle (y0, y1, z0, z1) in m is set for 'partial'."""
+    if v in ("free", "wall"):
+        return v, None
+    w = v.get("wall") if isinstance(v, dict) and len(v) == 1 else None
+    if w == "footprint":
+        return "partial", (0.0, W, 0.0, L)
+    if isinstance(w, dict) and set(w) == {"y_mm", "z_mm"}:
+        (y0, y1), (z0, z1) = sorted(w["y_mm"]), sorted(w["z_mm"])
+        if y1 - y0 <= 0 or z1 - z0 <= 0:
+            raise ValueError("heatsink.back.wall: y_mm and z_mm need two different values each")
+        return "partial", (y0 * MM, y1 * MM, z0 * MM, z1 * MM)
+    raise ValueError("heatsink.back: free, wall, {wall: footprint} or {wall: {y_mm: [a, b], z_mm: [c, d]}}")
 
 
 AIRFLOW_DIRECTIONS = {   # inlet boundary and flow direction of a fan
@@ -462,6 +489,13 @@ def sink_heat_free(cfg: Config, Ts: float) -> dict:
     A_back = 0.0
     if s["back"] == "free":
         A_back = W * L - cfg.ims["size"][0] * cfg.ims["size"][1]
+    elif s["back"] == "partial":
+        # exposed back face of the base (outside the board) minus the part a wall covers
+        def cover(y0, y1, z0, z1):
+            wy0, wy1, wz0, wz1 = s["back_wall"]
+            return max(0.0, min(y1, wy1) - max(y0, wy0)) * max(0.0, min(z1, wz1) - max(z0, wz0))
+        (cy, cz), (sy, sz) = cfg.ims["centre"], cfg.ims["size"]
+        A_back = (W * L - sy * sz) - (cover(0.0, W, 0.0, L) - cover(cy - sy / 2, cy + sy / 2, cz - sz / 2, cz + sz / 2))
     q_back = h_out * A_back * (Ts - Ta)
 
     # Radiation: the fin array's outer envelope radiates as a flat surface with the surface
