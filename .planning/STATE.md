@@ -52,6 +52,7 @@ Recent decisions affecting current work:
 - SKILL.md: say that `devices` may be empty when `board.power_W` is set (fold into 01-07 docs).
 - README plate-fin table: normal-mesh row is still the v0.1.0 heater run; rerun normal mesh without devices before 0.2.0.
 - Layout figure: dimension labels overlap axis numbers when the board covers the whole sink (cosmetic; 01-05/01-07 may fix).
+- `heatsink.back: wall` makes the WHOLE back boundary an adiabatic wall (full domain height). In the plate-fin case the plume then clings to it (normal mesh: centre-channel plume max at x = −2…3 mm, i.e. on the wall; fresh air enters through the fin tips at ~1 cm/s), so per-channel plumes as in Kirinčić Fig. 10 do not appear at mid fin height. Real setup: insulated vessel only behind the base, open air above. Candidate fix: wall only over the sink/vessel footprint (`back: {wall: footprint}`), rerun plate-fin and compare R and Fig. 10. Normal mesh R 2.242 K/W (−1.7 %), all checks pass.
 - hand_calc.py zero-device output prints "Base under board" and "R_sink-air" twice (cosmetic).
 
 ### Blockers/Concerns
