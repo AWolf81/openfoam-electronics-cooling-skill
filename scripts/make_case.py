@@ -686,6 +686,25 @@ def write_case(case: Path, cfg: Config, res: str, iterations: int | None = None)
         writeControl    timeStep;
         writeInterval   50;
     }}""")
+    # Net radiation through each domain boundary patch (only with a wall on the boundary, so
+    # cases without one stay as they were): report.py balances the whole domain with it, heat
+    # in = convection + radiation out through the open boundaries, so a wall that exchanges
+    # radiation shows up as an imbalance.
+    if rad and back_wall_patch:
+        for pname in open_names + [back_wall_patch]:
+            funcs.append(f"""    radFlow_{pname}
+    {{
+        type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        region          air;
+        regionType      patch;
+        name            {pname};
+        operation       areaIntegrate;   // qr is positive out of the air: radiation leaving
+        fields          (qr);
+        writeFields     no;
+        writeControl    timeStep;
+        writeInterval   50;
+    }}""")
     funcs.append("""    airMinMax
     {
         type            fieldMinMax;
@@ -807,6 +826,14 @@ sootModel       none;
         for r in solid_names:
             entries.append(f'air_to_{r}\n{{\n    type            lookup;\n    emissivity      {eps[r]:g};\n'
                            f'    absorptivity    {eps[r]:g};\n    transmissivity  0;\n}}')
+        # An adiabatic wall on the domain boundary (heatsink.back wall or partial) must not
+        # exchange radiation either: under the black '.*' default it emitted at its own
+        # (zeroGradient) temperature and put about 3 W into the plate-fin case (9.22 W heat
+        # input). A perfect reflector (emissivity 0) carries zero net radiative flux, like a
+        # re-radiating adiabatic wall; open boundaries keep the black default (the room).
+        if back_wall_patch:
+            entries.append(f'{back_wall_patch}\n{{\n    type            lookup;\n    emissivity      0;\n'
+                           '    absorptivity    0;\n    transmissivity  0;\n}')
         foam(case / "constant/air/boundaryRadiationProperties", "boundaryRadiationProperties",
              "\n\n".join(entries))
     else:
