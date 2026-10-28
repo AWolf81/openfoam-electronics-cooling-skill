@@ -126,7 +126,7 @@ def main() -> int:
     T_sink_mean = tail_mean(T_sink)[0] if T_sink else None
     devs = []
     gates = []  # filled below
-    for d in cfg["devices"]:
+    for d in cfg.get("devices") or []:
         n = d["name"]
         s = series(case, n, f"case_{n}", "surfaceFieldValue.dat")
         if not s:
@@ -138,6 +138,18 @@ def main() -> int:
         hc_row = next(r for r in hc["devices"] if r["name"] == n)
         devs.append({"name": n, "P": P, "T_case": T_case, "Tj": T_case + P * rjc,
                      "tj_max": d.get("tj_max_C", 175.0), "Tj_hand": hc_row["T_j_C"], "drift": drift})
+    # No devices (bare heat sink heated through the board): the result is the base temperature
+    # (mean over the sink's contact face with the board) and the board maximum.
+    bare = None
+    if not cfg.get("devices"):
+        s_base = series(case, "heatsink", "Tbase_heatsink", "surfaceFieldValue.dat")
+        s_board = series(case, "ims", "Tmax_ims", "volFieldValue.dat")
+        if s_base and s_board:
+            T_base, drift_base = tail_mean(s_base)
+            bare = {"T_base": T_base - 273.15, "drift": drift_base,
+                    "T_board": tail_mean(s_board)[0] - 273.15,
+                    "T_base_hand": hc["T_base_under_ims_C"],
+                    "T_board_hand": hc["T_base_under_ims_C"] + hc["P_tot"] * hc["R_tim"]}
 
     # ---- physical sanity: the defects this setup has actually had show up here first
     U_s, Tair_s = [], []
@@ -213,6 +225,9 @@ def main() -> int:
         gates.append(("Heat flow settled (mean over the last 20 % of run)", ch <= 0.005,
                       f"mean moved {100 * ch:.2f} % of the loss, oscillation band {100 * band:.2f} %"))
     drifts = [d["drift"] for d in devs if d["drift"] is not None]
+    if bare:
+        gates.append(("Base temperature settled (mean over the last 20 % of run)", abs(bare["drift"]) <= 0.5,
+                      f"drift of the mean {abs(bare['drift']):.2f} K"))
     if drifts:
         gates.append(("Case temperatures settled (mean over the last 20 % of run)",
                       max(abs(x) for x in drifts) <= 0.5,
@@ -227,13 +242,29 @@ def main() -> int:
     ok = all(g[1] for g in gates)
     L = [f"# Thermal result: {cfg.get('name', case.name)}", "",
          f"Case `{case}`, resolution {meta['resolution']}, iteration {t_last:g}, ambient {Ta:g} C.", ""]
-    L += ["## Junction temperatures", "",
-          "| Device | Loss W | T case C | Tj C | Tj max C | Margin K | Hand calc Tj C |",
-          "|---|---|---|---|---|---|---|"]
-    for d in devs:
-        L.append(f"| {d['name']} | {d['P']:.2f} | {d['T_case']:.1f} | {d['Tj']:.1f} | {d['tj_max']:.0f} | "
-                 f"{d['tj_max'] - d['Tj']:.0f} | {d['Tj_hand']:.1f} |")
-    L += ["", "Tj = hottest point of the package contact face + loss x Rth(j-c).", ""]
+    if not cfg.get("devices"):
+        L += ["## Board and base temperature", "",
+              "No devices: result is the board/base temperature (the heat enters through the board).", ""]
+        if bare:
+            R = lambda T: (T - Ta) / P_in if P_in else float("nan")  # noqa: E731
+            L += ["| Quantity | CFD C | R to ambient K/W | Hand calc C |", "|---|---|---|---|",
+                  f"| Base under the board (mean of the sink's contact face) | {bare['T_base']:.1f} | "
+                  f"{R(bare['T_base']):.3f} | {bare['T_base_hand']:.1f} |",
+                  f"| Board maximum | {bare['T_board']:.1f} | {R(bare['T_board']):.3f} | {bare['T_board_hand']:.1f} |"]
+            if T_sink:
+                L.append(f"| Heat sink mean | {T_sink_mean - 273.15:.1f} | {R(T_sink_mean - 273.15):.3f} | "
+                         f"{hc['T_sink_C']:.1f} |")
+        else:
+            L.append("No base temperature data (Tbase_heatsink) yet.")
+        L.append("")
+    else:
+        L += ["## Junction temperatures", "",
+              "| Device | Loss W | T case C | Tj C | Tj max C | Margin K | Hand calc Tj C |",
+              "|---|---|---|---|---|---|---|"]
+        for d in devs:
+            L.append(f"| {d['name']} | {d['P']:.2f} | {d['T_case']:.1f} | {d['Tj']:.1f} | {d['tj_max']:.0f} | "
+                     f"{d['tj_max'] - d['Tj']:.0f} | {d['Tj_hand']:.1f} |")
+        L += ["", "Tj = hottest point of the package contact face + loss x Rth(j-c).", ""]
     L += ["## Heat path", "", f"- Loss put in: {P_in:.2f} W",
           f"- Heat leaving the solids into the air: {Q_air:.2f} W"]
     if Q_rad is not None:

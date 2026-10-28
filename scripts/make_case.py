@@ -516,6 +516,23 @@ def write_case(case: Path, cfg: Config, res: str, iterations: int | None = None)
         writeControl    timeStep;
         writeInterval   50;
     }}""")
+    if not cfg.devices:
+        # No devices (bare heat sink heated through the board): the result is the base temperature,
+        # the mean over the sink's contact face with the board (where a base thermocouple sits).
+        funcs.append(f"""    Tbase_heatsink
+    {{
+        type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        region          heatsink;
+        regionType      patch;
+        name            dummy;
+        names           ("heatsink_to_({board_re})");
+        operation       areaAverage;
+        fields          (T);
+        writeFields     no;
+        writeControl    timeStep;
+        writeInterval   50;
+    }}""")
     for r in solid_names:
         funcs.append(f"""    Tmax_{r}
     {{
