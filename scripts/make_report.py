@@ -149,7 +149,7 @@ def fig_layout(cfg, path: Path):
     a.annotate("air", xy=(s["width"] / MM + 12, s["length"] / MM * 0.8),
                xytext=(s["width"] / MM + 12, s["length"] / MM * 0.2),
                arrowprops=dict(arrowstyle="->", color="tab:blue", lw=2), color="tab:blue", ha="center")
-    a.set_title("Back view (mounting face): device placement")
+    a.set_title("Back view (mounting face): " + ("device placement" if cfg.devices else "board placement"))
     a.set_xlabel("y (mm)")
     a.set_ylabel("z, up (mm)")
 
@@ -163,7 +163,7 @@ def fig_layout(cfg, path: Path):
            f"{s['n_fins']} fins x {s['fin_t'] / MM:g} mm, gap {s['gap'] / MM:.1f} mm, "
            f"height {s['fin_h'] / MM:g} mm", ha="center", va="bottom", fontsize=9)
     b.text(s["width"] / MM + 3, s["base"] / MM / 2, f"base {s['base'] / MM:g} mm", va="center", fontsize=9)
-    b.set_title("Section through the devices, seen from above")
+    b.set_title(("Section through the devices" if cfg.devices else "Section through the board") + ", seen from above")
     b.set_xlabel("y (mm)")
     b.set_ylabel("x, out of the fins (mm)")
 
@@ -172,6 +172,8 @@ def fig_layout(cfg, path: Path):
     im = cfg.ims
     sp = im["spreader"]
     layers = ([("Package (Rth j-c " + f"{cfg.devices[0].rth_jc:g} K/W)", COLORS["device"], "w")]
+              if cfg.devices else [("Heat put into the board", COLORS["ims"], "w")])
+    layers = (layers
               + [(layer_text(l), *layer_color(l["name"])) for l in im["under"]]
               + [(f"{spreader_label(cfg)}, {sp['k']:g} W/mK (meshed spreader)", COLORS["ims"], "w")]
               + [(layer_text(l), *layer_color(l["name"])) for l in im["below"]]
@@ -255,6 +257,14 @@ def solid_meshes(regions):
         mm.point_data["Tss"] = mm.point_data["T"] - 273.15
         out[name] = mm
     return out
+
+
+def hot_curve(cfg):
+    """Warm-up columns the video's headline curve takes the maximum of, and its label: the
+    junctions, or with no devices (heat put into the board) the board node."""
+    if cfg.devices:
+        return [f"Tj_{d.name}_C" for d in cfg.devices], "hottest Tj"
+    return ["T_ims_C"], "board"
 
 
 def warmup_node(cfg, name):
@@ -475,7 +485,11 @@ def fig_cfd_plume(cfg, regions, path: Path):
     air.points *= 1 / MM
     # through the conducting devices (the heat sources), 0.37 mm off so the cut misses grid faces
     hot = [d for d in cfg.devices if d.power_W is None] or cfg.devices
-    y0 = np.mean([d.centre[0] for d in hot]) / MM + 0.37
+    if hot:
+        y0 = np.mean([d.centre[0] for d in hot]) / MM + 0.37
+    else:   # no devices: through the board centre
+        (_, _), (iy0, iy1), _ = solids(cfg)["ims"][0]
+        y0 = (iy0 + iy1) / 2 / MM + 0.37
     s_ = cfg.sink
     near = (-60.0, (s_["base"] + s_["fin_h"]) / MM + 60.0, -1e9, 1e9, -40.0, s_["length"] / MM + 220.0)
     sl = air.slice(normal="y", origin=(0, y0, 0)).clip_box(near, invert=False)
@@ -499,7 +513,7 @@ def fig_cfd_plume(cfg, regions, path: Path):
             if cut.n_points:
                 p.add_mesh(cut, color=part_color(name, cfg))
     frame(p, (0, -1, 0), 1.05)   # camera at -y looking +y: x (out of the fins) to the right, z up
-    p.add_text(f"Vertical section through the devices (y = {y0:.0f} mm)\n"
+    p.add_text(f"Vertical section through the {'devices' if cfg.devices else 'board centre'} (y = {y0:.0f} mm)\n"
                "left: device side, right: fin side; arrows: air flow", font_size=10)
     p.screenshot(str(path))
     p.close()
@@ -562,7 +576,7 @@ def video_heatup(cfg, regions, rows, summ, path: Path, fps=12, seconds=12):
     Ta = cfg.ambient_C
     meshes, times, t_all, t_end, row, scale, peak = _frames(cfg, regions, rows, summ, fps, seconds)
     clim = ir_clim(Ta, peak)
-    tj_cols = [f"Tj_{d.name}_C" for d in cfg.devices]
+    tj_cols, hot_lab = hot_curve(cfg)
     writer = imageio.get_writer(str(path), fps=fps, codec="libx264", quality=8, macro_block_size=8)
     try:
         for tt in times:
@@ -577,10 +591,10 @@ def video_heatup(cfg, regions, rows, summ, path: Path, fps=12, seconds=12):
                                   wspace=0.05, hspace=0.25)
             ir_panels(fig, [gs[0, 0], gs[0, 1]], dev, fin, clim,
                       f"t = {tt / 60:5.1f} min   surface max {tmax:5.1f} C   "
-                      f"hottest Tj {max(r[c_] for c_ in tj_cols):5.1f} C", cfg)
+                      f"{hot_lab} {max(r[c_] for c_ in tj_cols):5.1f} C", cfg)
             ax = fig.add_subplot(gs[1, :])
             tm = t_all / 60
-            ax.plot(tm, [max(rr[c_] for c_ in tj_cols) for rr in rows], lw=2, color="#f05a28", label="hottest Tj")
+            ax.plot(tm, [max(rr[c_] for c_ in tj_cols) for rr in rows], lw=2, color="#f05a28", label=hot_lab)
             ax.plot(tm, [rr["T_sink_C"] for rr in rows], ":", lw=2, color="0.4", label="heat sink")
             ax.axvline(tt / 60, color="tab:red")
             ax.set_xlim(0, t_end / 60)
@@ -602,7 +616,7 @@ def video_heatup_3d(cfg, regions, rows, summ, path: Path, fps=12, seconds=10):
     Ta = cfg.ambient_C
     meshes, times, t_all, t_end, row, scale, peak = _frames(cfg, regions, rows, summ, fps, seconds)
     clim = (Ta, peak)
-    tj_cols = [f"Tj_{d.name}_C" for d in cfg.devices]
+    tj_cols, hot_lab = hot_curve(cfg)
 
     p = pv.Plotter(off_screen=True, window_size=(900, 760))
     for name, mm in meshes.items():
@@ -621,14 +635,14 @@ def video_heatup_3d(cfg, regions, rows, summ, path: Path, fps=12, seconds=10):
                 # write into the array the renderer holds; assigning a new array would not show
                 mm.point_data["T (C)"][:] = Ta + (mm.point_data["Tss"] - Ta) * scale(r, name)
                 mm.Modified()
-            label.set_text("upper_left", f"t = {tt / 60:5.1f} min   hottest Tj = {max(r[c_] for c_ in tj_cols):.1f} C")
+            label.set_text("upper_left", f"t = {tt / 60:5.1f} min   {hot_lab} = {max(r[c_] for c_ in tj_cols):.1f} C")
             p.render()
             frame3d = p.screenshot(return_img=True)
             fig, ax = plt.subplots(1, 2, figsize=(14, 5.6), gridspec_kw={"width_ratios": [1.15, 1]})
             ax[0].imshow(frame3d)
             ax[0].axis("off")
             tm = t_all / 60
-            ax[1].plot(tm, [max(rr[c_] for c_ in tj_cols) for rr in rows], lw=2, label="hottest Tj")
+            ax[1].plot(tm, [max(rr[c_] for c_ in tj_cols) for rr in rows], lw=2, label=hot_lab)
             ax[1].plot(tm, [rr["T_sink_C"] for rr in rows], ":", lw=2, label="sink")
             ax[1].axvline(tt / 60, color="tab:red")
             ax[1].set_xlim(0, t_end / 60)
@@ -647,20 +661,28 @@ def video_heatup_3d(cfg, regions, rows, summ, path: Path, fps=12, seconds=10):
 
 
 def fig_temperature_path(cfg, hc, cfd, path: Path):
-    """Ambient -> sink -> board spreader -> case -> junction for the hottest device, hand calc vs CFD."""
-    d = max(hc["devices"], key=lambda r: r["T_j_C"])
-    labels = ["ambient", "sink (mean)", cfg.ims["spreader"]["name"], "case", "junction"]
-    hand = [cfg.ambient_C, hc["T_sink_C"], hc["T_base_under_ims_C"] + hc["P_tot"] * hc["R_tim"],
-            d["T_case_C"], d["T_j_C"]]
+    """Ambient -> sink -> board spreader -> case -> junction for the hottest device, hand calc vs CFD.
+    No devices: ambient -> sink -> base under the board -> board (the heat enters in the board)."""
+    T_board = hc["T_base_under_ims_C"] + hc["P_tot"] * hc["R_tim"]
+    if hc["devices"]:
+        d = max(hc["devices"], key=lambda r: r["T_j_C"])
+        labels = ["ambient", "sink (mean)", cfg.ims["spreader"]["name"], "case", "junction"]
+        hand = [cfg.ambient_C, hc["T_sink_C"], T_board, d["T_case_C"], d["T_j_C"]]
+        cfd_T = [cfg.ambient_C, cfd["T_sink_C"], cfd["T_ims_C"], cfd["T_case_C"], cfd["Tj_C"]] if cfd else None
+        title = d["name"]
+    else:
+        labels = ["ambient", "sink (mean)", "base under board", cfg.ims["spreader"]["name"]]
+        hand = [cfg.ambient_C, hc["T_sink_C"], hc["T_base_under_ims_C"], T_board]
+        cfd_T = [cfg.ambient_C, cfd["T_sink_C"], cfd["T_base_C"], cfd["T_ims_C"]] if cfd else None
+        title = "board (no devices)"
     fig, ax = plt.subplots(figsize=(8, 4.2))
     x = np.arange(len(labels))
     ax.plot(x, hand, "o-", label="hand calc")
-    if cfd:
-        ax.plot(x, [cfg.ambient_C, cfd["T_sink_C"], cfd["T_ims_C"], cfd["T_case_C"], cfd["Tj_C"]],
-                "s-", label="CFD")
+    if cfd_T:
+        ax.plot(x, cfd_T, "s-", label="CFD")
     ax.set_xticks(x, labels)
     ax.set_ylabel("temperature (C)")
-    ax.set_title(f"Temperature along the heat path, {d['name']}")
+    ax.set_title(f"Temperature along the heat path, {title}")
     ax.grid(alpha=0.3)
     ax.legend()
     fig.tight_layout()
@@ -716,11 +738,28 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
         tj = cf["Tj"] if cf else d["T_j_C"]
         rows.append([d["name"], f"{d['P']:.2f}", f"{d['T_j_C']:.1f}",
                      f"{cf['Tj']:.1f}" if cf else "not run", f"{d['tj_max']:.0f}", f"{d['tj_max'] - tj:.0f}"])
-    table(rows, ["Device", "Loss (W)", "Tj hand calc (C)", "Tj CFD (C)", "Tj max (C)", "Margin (K)"])
-    worst = min(float(r[-1]) for r in rows)
-    msg = (f"At {cfg.ambient_C:g} C ambient the hottest junction stays {worst:.0f} K below its limit. "
-           + ("That is above the usual 25 K design margin." if worst >= 25 else
-              "That is BELOW the usual 25 K design margin."))
+    if rows:
+        table(rows, ["Device", "Loss (W)", "Tj hand calc (C)", "Tj CFD (C)", "Tj max (C)", "Margin (K)"])
+        worst = min(float(r[-1]) for r in rows)
+        msg = (f"At {cfg.ambient_C:g} C ambient the hottest junction stays {worst:.0f} K below its limit. "
+               + ("That is above the usual 25 K design margin." if worst >= 25 else
+                  "That is BELOW the usual 25 K design margin."))
+    else:   # no devices: the heat enters through the board; the result is the board/base temperature
+        P = hc["P_tot"]
+        R = lambda T: f"{(T - cfg.ambient_C) / P:.3f}" if P else "-"  # noqa: E731
+        T_board = hc["T_base_under_ims_C"] + P * hc["R_tim"]
+        base_cfd = cfd.get("T_base_C") if cfd else None
+        rows = [["Base under the board (mean of the sink's contact face)", f"{hc['T_base_under_ims_C']:.1f}",
+                 f"{base_cfd:.1f}" if base_cfd is not None else "not run",
+                 R(base_cfd if base_cfd is not None else hc["T_base_under_ims_C"])],
+                ["Board maximum", f"{T_board:.1f}", f"{cfd['T_ims_C']:.1f}" if cfd else "not run",
+                 R(cfd["T_ims_C"] if cfd else T_board)],
+                ["Heat sink mean", f"{hc['T_sink_C']:.1f}", f"{cfd['T_sink_C']:.1f}" if cfd else "not run",
+                 R(cfd["T_sink_C"] if cfd else hc["T_sink_C"])]]
+        table(rows, ["Quantity", "Hand calc (C)", "CFD (C)", "R to ambient (K/W)"])
+        msg = (f"No devices: {P:.2f} W enters through the board, so the result is the board and base "
+               f"temperature at {cfg.ambient_C:g} C ambient (R to ambient from the "
+               + ("CFD)." if cfd else "hand calc)."))
     doc.add_paragraph(msg)
     if verdict:
         doc.add_paragraph(f"CFD checks: {verdict}")
@@ -731,11 +770,14 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
     # 2. inputs
     doc.add_heading("2. Inputs", 1)
     s, im, el = cfg.sink, cfg.ims, cfg.electrical
-    inp = [["Ambient (worst case)", f"{cfg.ambient_C:g} C"],
-           ["Current", f"{el['current']} A" if el["current"] is not None else "per device power"],
-           ["Rds(on) 25 C / factor at 125 C", f"{el['rds25'] * 1e3:g} mOhm / x{el['f125']:g}" if el["rds25"] else "-"],
-           ["Switching loss per device", f"{el['switching_W']:g} W"],
-           ["Heat sink", f"{s['width'] / MM:g} x {s['length'] / MM:g} mm, base {s['base'] / MM:g} mm, "
+    inp = [["Ambient (worst case)", f"{cfg.ambient_C:g} C"]]
+    if cfg.devices:
+        inp += [["Current", f"{el['current']} A" if el["current"] is not None else "per device power"],
+                ["Rds(on) 25 C / factor at 125 C", f"{el['rds25'] * 1e3:g} mOhm / x{el['f125']:g}" if el["rds25"] else "-"],
+                ["Switching loss per device", f"{el['switching_W']:g} W"]]
+    else:
+        inp += [["Heat input", f"{hc['P_tot']:.2f} W into the board (no devices)"]]
+    inp += [["Heat sink", f"{s['width'] / MM:g} x {s['length'] / MM:g} mm, base {s['base'] / MM:g} mm, "
                          f"{s['n_fins']} fins {s['fin_t'] / MM:g} x {s['fin_h'] / MM:g} mm (gap {s['gap'] / MM:.1f} mm), "
                          f"k {s['k']:g} W/mK, emissivity {s['emissivity']:g}, back {s['back']}"],
            ["Board", f"{im['label']}, {im['size'][0] / MM:g} x {im['size'][1] / MM:g} mm"],
@@ -755,7 +797,8 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
     # 3. arrangement
     doc.add_heading("3. Arrangement", 1)
     figure("layout", "Figure 1: device placement on the sink, section through the devices, and the "
-                     "layers the heat crosses.")
+                     "layers the heat crosses." if cfg.devices else
+           "Figure 1: board placement on the sink, section through the board, and the layers the heat crosses.")
     figure("assembly", "Figure 2: 3D view of the modelled assembly (grey heat sink, green board, black packages).")
 
     # 4. setup
@@ -774,17 +817,21 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
                 ["Board", f"{cfg.ims['spreader']['name']} meshed; the layers above it (part side) and below "
                           "it (sink side) as thin thermal resistances on those interfaces"],
                 ["Heat sources", ", ".join(f"{k} {v:.2f} W" for k, v in meta["power_W"].items())],
-                ["Junction temperature", "hottest point of the package contact face + loss x Rth(j-c)"]]
+                ["Junction temperature", "hottest point of the package contact face + loss x Rth(j-c)"]
+                if cfg.devices else
+                ["Base temperature", "area mean of the heat sink's contact face with the board"]]
         table(rows, ["Item", "Setting"], [4, 13])
     else:
         doc.add_paragraph("No CFD case was run; results below are from the hand calculation.")
 
     # 5. results
     doc.add_heading("5. Thermal results", 1)
-    figure("path", "Figure 3: temperature along the heat path of the hottest device.", 14)
+    figure("path", "Figure 3: temperature along the heat path of the hottest device." if cfg.devices else
+           "Figure 3: temperature along the heat path from the board to the air.", 14)
     if cfd:
         figure("cfd_solids", "Figure 4: CFD temperature of all solid parts (same colour scale both views).")
-        figure("plume", "Figure 5: air temperature and flow in a vertical section through the devices.", 13)
+        figure("plume", "Figure 5: air temperature and flow in a vertical section through the "
+               + ("devices." if cfg.devices else "board centre."), 13)
         rows = [["Heat put in", f"{cfd['P_in']:.2f} W"], ["Heat leaving the solids", f"{cfd['Q_out']:.2f} W"],
                 ["of which radiation", f"{cfd['Q_rad']:.2f} W ({100 * cfd['Q_rad'] / max(cfd['Q_out'], 1e-9):.0f} %)"
                  if cfd.get("Q_rad") is not None else "not modelled"],
@@ -804,7 +851,9 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
             "Lumped model with the real heat capacities (heat sink "
             f"{summ['C_sink_J_K']:.0f} J/K, {cfg.ims['spreader']['name']} {summ['C_ims_J_K']:.1f} J/K), "
             "calibrated so its end point equals "
-            f"the {summ['calibrated_to']} steady state; losses rise with junction temperature along the way."
+            f"the {summ['calibrated_to']} steady state; "
+            + ("losses rise with junction temperature along the way." if cfg.devices else
+               "the board power is constant, and the curve shown for the board is its temperature.")
             + (" The heat-up video (heatup.mp4, delivered with this report) shows the same warm-up on the 3D "
                "temperature field." if has_video else ""))
 
@@ -815,7 +864,8 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
 
     # 8. limits
     doc.add_heading("8. Limits", 1)
-    for t in ["Tj is case temperature plus loss x Rth(j-c); the die itself is not modelled.",
+    for t in ["Tj is case temperature plus loss x Rth(j-c); the die itself is not modelled." if cfg.devices else
+              "No devices: the heat is put in evenly over the board's spreader.",
               "Thin layers conduct only through their thickness; copper spreading under the pad is ignored (conservative).",
               "The surroundings radiate as a black room at ambient; nearby hot walls or an enclosure are not modelled.",
               "Air is laminar with constant properties at the film temperature; solids have constant conductivity.",
@@ -906,12 +956,16 @@ def main() -> int:
         cfd = {"devices": dev, "P_in": sum(meta["power_W"].values()), "Q_out": q_out,
                "Q_rad": -tail_mean(rad)[0] if rad else None, "T_sink_C": tg["T_sink_C"], "T_ims_C": tg["T_ims_C"],
                "T_case_C": dev[hot]["T_case"] if hot else None, "Tj_C": dev[hot]["Tj"] if hot else None}
+        if not cfg.devices:   # no devices: base temperature, mean over the sink's contact face with the board
+            tb = tail_mean(series(case, "heatsink", "Tbase_heatsink", "surfaceFieldValue.dat"))[0]
+            cfd["T_base_C"] = c(tb) if tb is not None else None
         all_T = [float(m["T"].max()) - 273.15 for n, m in regions.items() if n != "air"]
         clim = (cfg.ambient_C, max(all_T))
         fig_cfd_solids(cfg, regions, figs["cfd_solids"], clim)
         if "air" in regions:
             fig_cfd_plume(cfg, regions, figs["plume"])
-    fig_temperature_path(cfg, hc, cfd if cfd and cfd.get("Tj_C") else None, figs["path"])
+    fig_temperature_path(cfg, hc, cfd if cfd and (cfd.get("Tj_C") if cfg.devices else cfd.get("T_base_C"))
+                         else None, figs["path"])
 
     has_video = False
     if not a.no_video and regions:
