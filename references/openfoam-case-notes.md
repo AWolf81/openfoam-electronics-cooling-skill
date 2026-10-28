@@ -142,6 +142,20 @@ report has the sanity gates.
    well under 0.01 W of it, so it is left as is (separating the radiation temperature would
    need an extra field read through `T Tname` on `greyDiffusiveRadiation` and would change
    every case).
+8. **Odd nTheta loses radiation into horizontal low-emissivity faces (open, found in 01-09).**
+   With the default `radiation_rays: [3, 3]` the middle polar band (60-120 degrees) straddles
+   the horizontal plane, so faces with a vertical normal see only 3/4 of the hemisphere (section
+   2). In the plate-fin case (emissivity 0.05 everywhere) the horizontal faces of the sink, foam
+   and board absorbed about 80 W/m2 each that does not exist (foam top and bottom +0.25 W each,
+   sink ends +0.14 W each), fed by the open boundaries, which then emitted net into the room:
+   the bottom boundary, all at ambient, -0.14 W. The solids came out absorbing 0.27-0.29 W of
+   radiation instead of losing it (hand calc +0.15 W). Every balance still closes (fvDOM
+   conserves in total), so no gate sees it. Same case with `radiation_rays: [3, 4]` (48 rays):
+   solids radiate +0.55 W out, the bottom boundary absorbs +0.06 W, the top still emits
+   -0.14 W (the warm outflow of defect 7); base 50.3 C instead of 51.3 C, R 2.308 instead of
+   2.413 K/W (measured 2.28). Not changed by default yet: an even nTheta changes every case
+   and the validation numbers. Until then, use an even nTheta when parts with low emissivity
+   have large horizontal faces.
 
 ## 4. Troubleshooting by symptom
 
