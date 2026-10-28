@@ -6,13 +6,14 @@
 # their Table 1 and Section 4.
 #
 # Measured: 9.22 W at base 50.0 °C, ambient 29.02 °C -> R = 2.28 K/W (their Fluent CFD: 2.22 K/W).
-# This skill, v0.1.0: hand calc 50.6 °C (2.34 K/W); CFD coarse 49.8 °C (2.25 K/W), normal
-# 50.0 °C (2.28 K/W); all checks pass on both meshes. Compare the heater's case temperature (= the
-# base) with 50.0 °C.
+# This skill: hand calc base 50.6 °C (R sink-air 2.34 K/W). CFD coarse, heated through board.power_W (no
+# devices): base 49.4 °C (2.21 K/W, -3 %), board maximum 49.6 °C, all checks pass. (v0.1.0 needed a
+# "heater" device as the heat source: coarse 49.8 °C, normal 50.0 °C.) Compare the base temperature
+# in the report ("Board and base temperature") with 50.0 °C.
 #
 # The heat came from a water vessel pressed onto the whole base with silicone paste and insulated
 # on every other side. Modelled as a thin aluminium "vessel wall" (the board spreader) over the
-# whole base, a flat heater part on it with the measured power, and an adiabatic wall at the back.
+# whole base that carries the measured power itself, and an adiabatic wall at the back.
 #
 #   python3 <skill>/scripts/hand_calc.py validation-plate-fin.yaml
 #   python3 <skill>/scripts/make_case.py validation-plate-fin.yaml cases/plate-fin-coarse --resolution coarse
@@ -38,25 +39,11 @@ board:
   emissivity: 0.05             # vessel covered in aluminium foil
   layers_under_parts:
     - {name: contact, thickness_um: 10, k: 200}
+  power_W: 9.22                # measured heat flow (calorimetry, 960 s steady period), put into
+                               # the vessel wall: no devices, the board is the heat source
   spreader: {name: Al vessel wall, thickness_mm: 2, k: 200, rho: 2700, cp: 900}
   layers_to_sink:
     - {name: silicone paste, thickness_um: 50, k: 1.0}   # CHECK: not stated; adds only ~0.004 K/W
-
-electrical:                    # unused: the heater has a fixed power
-  current_A: 0
-  rds_on_25C_mohm: 1
-  rds_on_factor_at_125C: 1.5
-  switching_loss_W_per_device: 0
-
-devices:                       # the skill needs at least one heat source: the water, as a heater
-  - name: heater
-    size_mm: [121, 98, 1]      # just inside the board edge
-    centre_mm: [61.5, 50]
-    power_W: 9.22              # measured heat flow (calorimetry, 960 s steady period)
-    rth_jc: 0
-    tj_max_C: 100
-    emissivity: 0.03           # foil-covered vessel; the default 0.9 radiated 0.6 W out the back
-                               # and broke the energy balance
 
 airflow: {mode: free}
 

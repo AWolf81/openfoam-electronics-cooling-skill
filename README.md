@@ -123,18 +123,22 @@ Kirinčić, Fadiga and Delač, *Experimental–Numerical Investigation of Natura
 Plate Fin Heat Sink with Correlation Assessment*, Thermo 2025, 5(4), 57
 ([doi:10.3390/thermo5040057](https://doi.org/10.3390/thermo5040057), CC BY 4.0). It is a bare
 aluminium extrusion, 123 × 100 mm with 11 fins (3 × 30 mm, 9 mm gaps), vertical in still air and
-heated through its base by a water vessel. The heat flow was measured by calorimetry.
+heated through its base by a water vessel. The heat flow was measured by calorimetry. The case
+has no devices: the measured power goes into the board (`board.power_W`), which stands in for the
+vessel wall, and the result is the base temperature.
 
 | 9.22 W, ambient 29.02 °C | Base temperature | R sink–air | vs measured |
 |---|---|---|---|
 | Measurement | 50.0 °C | 2.28 K/W | |
 | Paper's CFD (ANSYS Fluent, 4–9 M cells) | | 2.22 K/W | −3 % |
 | This skill: hand calc | 50.6 °C | 2.34 K/W | +3 % |
-| This skill: CFD, coarse (138 k cells) | 49.8 °C | 2.25 K/W | −1 % |
-| This skill: CFD, normal (317 k cells) | 50.0 °C | 2.28 K/W | 0 % |
+| This skill: CFD, coarse (112 k cells) | 49.4 °C | 2.21 K/W | −3 % |
+| This skill v0.1.0: CFD, normal (317 k cells), heater device | 50.0 °C | 2.28 K/W | 0 % |
 
-All checks pass on both meshes (energy balance +1.1 to +1.5 %, settled, hand calc vs CFD −4 to
-−5 %). Run with skill v0.1.0 from a fresh install. The YAML header has the commands.
+Coarse: heated through the board, no devices; all checks pass (energy balance 0.0 %, settled,
+sink rise −6 % vs hand calc); base = mean over the sink's contact face, the board maximum is
+49.6 °C (2.23 K/W). Normal: run with v0.1.0, when the heat source still had to be a "heater"
+device on the board (coarse then 49.8 °C); all checks passed. The YAML header has the commands.
 
 ## License
 

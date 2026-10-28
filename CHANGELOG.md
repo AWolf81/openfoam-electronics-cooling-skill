@@ -14,6 +14,10 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
 - Validation case `assets/validation-plate-fin.yaml`: a plate-fin heat sink in free convection
   against the measurement in Kirinčić et al., Thermo 2025 (CC BY 4.0). Hand calc +3 %, CFD on the
   normal mesh 0 % on the thermal resistance; results table in the README.
+- Cases without devices: `board.power_W` (or island power) can be the only heat source, for bare
+  heat-sink benchmarks and datasheet R_sa checks. The hand calc and `report.py` then give the
+  base and board temperature instead of junction temperatures. The plate-fin validation uses
+  this instead of a "heater" device (coarse CFD: base 49.4 °C, 2.21 K/W, −3 % vs measured).
 - GSD planning in `.planning/` (project, requirements, roadmap for 0.2.0, the v0.2 PRD). It is
   not part of the skill package and is left out of the package hash.
 
