@@ -303,12 +303,19 @@ STYLE = {"style": "cfd", "view_up": "z", "mirror": False, "ir_floor_K": 0.0, "ir
 # off so a colour means the same temperature everywhere; black feature edges show the shape.
 # Scales: sections and the video from ambient to the hottest value (global); the 3D view of the
 # solids from their coldest to their hottest point (local scale, like the paper's Fig. 12).
+# Resolution: the still figures render at CFD_RENDER_SCALE x the old window size and are saved
+# at CFD_DPI, so text and edges stay sharp when zoomed in; line widths scale with the render, and
+# fonts with CFD_FONT_SCALE, so the legend reads ~9-10 pt at the width the report prints them.
+# The video keeps its old size (scale 1).
+CFD_RENDER_SCALE = 2.5
+CFD_DPI = 200
+CFD_LINE_PX = 1.2           # black outlines, in pixels of the old (scale 1) render
 
 def cfd_cmap():
     return matplotlib.colormaps["turbo"].resampled(int(STYLE["cfd_levels"]))
 
 
-def cfd_add(p, mesh, scalars, clim, edges=False):
+def cfd_add(p, mesh, scalars, clim, edges=False, line_width=CFD_LINE_PX):
     """A temperature field in the CFD style: point data, interpolated before mapping, unlit."""
     p.add_mesh(mesh, scalars=scalars, preference="point", cmap=cfd_cmap(), clim=clim,
                n_colors=int(STYLE["cfd_levels"]), interpolate_before_map=True, lighting=False,
@@ -317,12 +324,12 @@ def cfd_add(p, mesh, scalars, clim, edges=False):
         e = mesh.extract_surface(algorithm="dataset_surface").extract_feature_edges(
             feature_angle=30, boundary_edges=False, non_manifold_edges=False, manifold_edges=False)
         if e.n_points:
-            p.add_mesh(e, color="black", line_width=1.2, lighting=False)
+            p.add_mesh(e, color="black", line_width=line_width, lighting=False)
 
 
-def cfd_colorbar(fig, rect, clim, label="Temperature [°C]"):
+def cfd_colorbar(fig, rect, clim, label="Temperature [°C]", fs=1.0):
     """Legend as in the paper: on the left, vertical, title above, ~11 ticks with one decimal
-    (two when the range is under 2 K)."""
+    (two when the range is under 2 K). fs scales fonts, ticks and the outline."""
     cax = fig.add_axes(rect)
     cb = fig.colorbar(plt.cm.ScalarMappable(matplotlib.colors.Normalize(*clim), cfd_cmap()), cax=cax)
     # round values inside the range (the ends stay at ambient / the hottest point)
@@ -332,9 +339,11 @@ def cfd_colorbar(fig, rect, clim, label="Temperature [°C]"):
     ticks = np.concatenate([[clim[0]], ticks, [clim[1]]])     # the ends labelled, as in the paper
     nd = 2 if clim[1] - clim[0] < 2 else 1
     cb.set_ticks(ticks)
-    cb.ax.set_yticklabels([f"{t:.{nd}f}" for t in ticks], fontsize=10, color="black")
-    cb.outline.set_linewidth(0.6)
-    cax.set_title(label, fontsize=11, loc="left", pad=10, color="black")
+    cb.ax.set_yticklabels([f"{t:.{nd}f}" for t in ticks], fontsize=10 * fs, color="black")
+    if fs != 1.0:
+        cb.ax.tick_params(width=0.8 * fs, length=3.5 * fs, pad=3.5 * fs)
+    cb.outline.set_linewidth(0.6 * fs)
+    cax.set_title(label, fontsize=11 * fs, loc="left", pad=10 * fs, color="black")
     return cb
 
 
@@ -519,31 +528,35 @@ def fig_cfd_solids_3d(cfg, regions, path: Path, clim=None):
             max(float(m.point_data["Tss"].max()) for m in meshes.values()))
     if clim[1] - clim[0] < 0.05:
         clim = (clim[0] - 0.05, clim[1] + 0.05)
+    k_ = CFD_RENDER_SCALE
+    fs = 2.3                    # 16 in wide, printed 16.5 cm wide: 10 pt x 2.3 x 0.41 = 9.4 pt
     imgs = []
     for view in ((1, -1.2, 0.8), (-1, -1.1, 0.6)):
-        p = pv.Plotter(off_screen=True, window_size=(1000, 820))
+        p = pv.Plotter(off_screen=True, window_size=(round(1000 * k_), round(820 * k_)))
         p.set_background("white")
         for mm in meshes.values():
-            cfd_add(p, mm, "Tss", clim, edges=True)
+            cfd_add(p, mm, "Tss", clim, edges=True, line_width=CFD_LINE_PX * k_)
         frame(p, view, 1.0)
-        imgs.append(_crop(p.screenshot(return_img=True)))
+        imgs.append(_crop(p.screenshot(return_img=True), pad=round(12 * k_)))
         p.close()
     fig = plt.figure(figsize=(16, 7))
-    gs = fig.add_gridspec(1, 2, left=0.12, right=0.99, bottom=0.02, top=0.9, wspace=0.04)
+    gs = fig.add_gridspec(1, 2, left=0.15, right=0.995, bottom=0.01, top=0.86, wspace=0.03)
     for k, (img, t) in enumerate(zip(imgs, ("Fin side", "Device side"))):
         a = fig.add_subplot(gs[k])
         a.imshow(img)
-        a.set_title(t, fontsize=12)
+        a.set_title(t, fontsize=12 * fs * 0.9)
         a.axis("off")
-    cfd_colorbar(fig, [0.035, 0.12, 0.018, 0.66], clim)
+    cfd_colorbar(fig, [0.03, 0.07, 0.018, 0.72], clim, fs=fs)
     nd = 2 if clim[1] - clim[0] < 2 else 1
-    fig.suptitle(f"CFD steady state, solids (local scale {clim[0]:.{nd}f} to {clim[1]:.{nd}f} °C)", fontsize=13)
-    fig.savefig(path, dpi=130)
+    fig.suptitle(f"CFD steady state, solids (local scale {clim[0]:.{nd}f} to {clim[1]:.{nd}f} °C)",
+                 fontsize=13 * fs * 0.9)
+    fig.savefig(path, dpi=CFD_DPI)
     plt.close(fig)
 
 
-def _plume_section(cfg, regions):
-    """The air in a vertical section through the heat sources (mm), clipped near the sink, and its y."""
+def _plume_section(cfg, regions, near=None):
+    """The air in a vertical section through the heat sources (mm), clipped near the sink (or to
+    the box `near`, in mm), and its y."""
     air = regions["air"].copy()
     air.points *= 1 / MM
     # through the conducting devices (the heat sources), 0.37 mm off so the cut misses grid faces
@@ -554,7 +567,8 @@ def _plume_section(cfg, regions):
         (_, _), (iy0, iy1), _ = solids(cfg)["ims"][0]
         y0 = (iy0 + iy1) / 2 / MM + 0.37
     s_ = cfg.sink
-    near = (-60.0, (s_["base"] + s_["fin_h"]) / MM + 60.0, -1e9, 1e9, -40.0, s_["length"] / MM + 220.0)
+    if near is None:
+        near = (-60.0, (s_["base"] + s_["fin_h"]) / MM + 60.0, -1e9, 1e9, -40.0, s_["length"] / MM + 220.0)
     return air.slice(normal="y", origin=(0, y0, 0)).clip_box(near, invert=False), y0
 
 
@@ -574,9 +588,23 @@ def fig_cfd_plume(cfg, regions, path: Path, clim=None):
     if STYLE["style"] == "ir":
         return fig_cfd_plume_ir(cfg, regions, path)
     pv = _pv()
-    sl, y0 = _plume_section(cfg, regions)
+    # Laid out like the paper's Fig. 11: the window is centred on the heat sink, one sink length
+    # of air below and above it, ~60 mm beside it; where the domain has no air there (e.g. a
+    # few mm of back clearance) the window stays white rather than stretching anything.
+    hs = solids(cfg)["heatsink"]
+    sx0, sx1 = min(b[0][0] for b in hs) / MM, max(b[0][1] for b in hs) / MM
+    sz0, sz1 = min(b[2][0] for b in hs) / MM, max(b[2][1] for b in hs) / MM
+    Ls = sz1 - sz0
+    z0, z1 = sz0 - Ls, sz1 + Ls
+    xc = (sx0 + sx1) / 2
+    hw = max((sx1 - sx0) / 2 + 60.0, 0.25 * (z1 - z0))
+    box = (xc - hw, xc + hw, -1e9, 1e9, z0, z1)
+    sl, y0 = _plume_section(cfg, regions, box)
     sl.point_data["T (C)"] = sl.point_data["T"] - 273.15
-    p = pv.Plotter(off_screen=True, window_size=(1500, 2000))
+    k_ = CFD_RENDER_SCALE
+    fs = 1.5                    # ~8 in wide, printed 13 cm wide: 10 pt x 1.5 x 0.64 = 9.6 pt
+    hpx = round(2000 * k_)
+    p = pv.Plotter(off_screen=True, window_size=(round(hpx * 2 * hw / (z1 - z0)), hpx))
     p.set_background("white")
     cfd_add(p, sl, "T (C)", clim)
     for name in solids(cfg):          # the solids in the cut, on the same scale
@@ -585,31 +613,69 @@ def fig_cfd_plume(cfg, regions, path: Path, clim=None):
             m.points *= 1 / MM
             cut = m.slice(normal="y", origin=(0, y0, 0))
             if cut.n_points:
+                cut = cut.clip_box(box, invert=False)
+            if cut.n_points:
                 cut.point_data["T (C)"] = cut.point_data["T"] - 273.15
                 cfd_add(p, cut, "T (C)", clim)
                 p.add_mesh(cut.extract_feature_edges(boundary_edges=True, feature_edges=False,
                                                      non_manifold_edges=False, manifold_edges=False),
-                           color="black", line_width=1.2, lighting=False)
-    if "U" in sl.point_data and sl.n_points:
-        p.add_mesh(_flow_arrows(pv, sl, 500, moving_only=True), color="white", opacity=0.7, lighting=False)
-    frame(p, (0, -1, 0), 1.05)   # camera at -y looking +y: x (out of the fins) to the right, z up
-    img = _crop(p.screenshot(return_img=True))
+                           color="black", line_width=CFD_LINE_PX * k_, lighting=False)
+    # camera at -y looking +y: x (out of the fins) to the right, z up; the window is the box
+    zc = (z0 + z1) / 2
+    p.enable_parallel_projection()
+    p.camera_position = [(xc, y0 - 1000.0, zc), (xc, y0, zc), (0, 0, 1)]
+    p.camera.parallel_scale = (z1 - z0) / 2
+    p.reset_camera_clipping_range()
+    img = p.screenshot(return_img=True)
     p.close()
     h, w = img.shape[:2]
-    hi = 8.5                                   # image size in inches, at most 8.5 high, 10 wide
-    wi = min(10.0, hi * w / h)
+    hi = 7.0                                   # image size in inches, at most 7 high, 4.6 wide
+    wi = min(4.6, hi * w / h)
     hi = wi * h / w
-    L, R, B, T = 2.0, max(0.2, 4.4 - wi), 0.2, 0.8            # margins: legend on the left, title on top
+    L = R = 2.3                                # legend on the left, panel centred in the figure
+    B, T = 0.2, 0.9                            # title on top
     W, H = L + wi + R, B + hi + T
     fig = plt.figure(figsize=(W, H))
     a = fig.add_axes([L / W, B / H, wi / W, hi / H])
-    a.imshow(img)
+    a.imshow(img, extent=(xc - hw, xc + hw, z0, z1))   # axes in mm, for the arrows
     a.axis("off")
+    if "U" in sl.point_data and sl.n_points:
+        _cfd_arrows(pv, a, regions["air"], y0, (xc - hw, xc + hw, z0, z1))
+    a.set_xlim(xc - hw, xc + hw)                     # the window, white where there is no air
+    a.set_ylim(z0, z1)
     fig.suptitle(f"Vertical section through the {'devices' if cfg.devices else 'board centre'} "
-                 f"(y = {y0:.0f} mm)\nleft: device side, right: fin side; arrows: air flow", fontsize=10)
-    cfd_colorbar(fig, [0.35 / W, (B + 0.15 * hi) / H, 0.28 / W, 0.7 * hi / H], clim)
-    fig.savefig(path, dpi=130)
+                 f"(y = {y0:.0f} mm)\nleft: device side, right: fin side; arrows: air flow", fontsize=10 * fs)
+    cfd_colorbar(fig, [0.15 / W, (B + 0.12 * hi) / H, 0.24 / W, 0.7 * hi / H], clim, fs=fs)
+    fig.savefig(path, dpi=CFD_DPI)
     plt.close(fig)
+
+
+def _cfd_arrows(pv, ax, air, y0, win, spacing=None):
+    """Flow direction in the CFD style: arrows (shaft + head) drawn by matplotlib over the
+    rendered section, so they stay sharp at any resolution. A regular grid every `spacing` mm
+    (default: the window height / 36, at least 3 mm; ~8 mm for a 100 mm sink, so the arrows
+    read at print size; denser grids drew specks), the velocity
+    sampled from the air volume (in m) at the section's y; points outside the air (in solids, beyond the domain) and in
+    still air are skipped. Equal length (direction only, as before); white with a thin dark
+    outline, so they read on dark air, on the hot plume and next to the red solids."""
+    x0, x1, z0, z1 = win
+    d = spacing or max(3.0, (z1 - z0) / 36)
+    xs = np.arange(x0 + d / 2, x1, d)
+    zs = np.arange(z0 + d / 2, z1, d)
+    X, Z = np.meshgrid(xs, zs)
+    pts = pv.PolyData(np.c_[X.ravel(), np.full(X.size, y0), Z.ravel()] * MM)
+    pr = pts.sample(air)
+    ok = pr.point_data["vtkValidPointMask"].astype(bool)
+    U = pr.point_data["U"]
+    sp = np.hypot(U[:, 0], U[:, 2])
+    ok &= sp > 1e-4
+    if not ok.any():
+        return
+    ln = 0.8 * d
+    ux, uz = U[ok, 0] / sp[ok] * ln, U[ok, 2] / sp[ok] * ln
+    ax.quiver(X.ravel()[ok] - ux / 2, Z.ravel()[ok] - uz / 2, ux, uz, angles="xy", scale_units="xy",
+              scale=1, units="xy", width=0.085 * d, headwidth=3.4, headlength=3.8, headaxislength=3.4,
+              color="white", edgecolor="#1a1a1a", linewidth=0.3, zorder=3)
 
 
 def fig_cfd_plume_ir(cfg, regions, path: Path):
