@@ -40,6 +40,19 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
 - SKILL.md checks: a low-power free-convection run that just misses "Heat flow settled" is rerun
   with `solver.iterations: 3000` before the result is judged.
 
+### Fixed
+
+- An adiabatic wall on the domain boundary (`heatsink.back: wall`, and the `back_wall` patch of
+  a partial wall) radiated as a black body at the temperature of the air next to it: in the
+  plate-fin case with the whole back wall it put 2.8 W (coarse) / 3.1 W (normal) into a case
+  with 9.22 W heat input. It is now a perfect reflector (emissivity 0, zero net flux); R of that
+  case 2.214 -> 2.206 K/W. The current plate-fin asset (wall behind the sink only, 0.03 W) is
+  unchanged (2.413 K/W). Cases with `back: free` are unchanged byte for byte.
+- `report.py`: for cases with a boundary wall, a domain energy balance (heat in = convection +
+  radiation out through the open boundaries; the wall must carry nothing), from new
+  `radFlow_<patch>` function objects. The old whole-wall run fails it (+31 %), the fixed run
+  passes (+0.1 %).
+
 ## [0.1.0] - 2026-10-28
 
 First release.

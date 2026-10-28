@@ -5,6 +5,8 @@
 
 Gates (see SKILL.md step 5): energy balance within 2 %, heat flow and case temperatures
 settled over the last fifth of the run, sink temperature rise within ~25 % of the hand calc.
+With a wall on the domain boundary (heatsink.back wall or partial) also a domain energy balance
+within 2 %: heat in = convection + radiation out through the open boundaries (radFlow_*).
 Exit code 0 = all gates pass, 1 = a gate fails (numbers are still written), 2 = no data.
 """
 
@@ -211,6 +213,29 @@ def main() -> int:
                       abs(H_out - Q_conv) <= 0.10 * max(P_in, 1e-9),
                       f"{H_out:.2f} W carried out by the air ({sum(H):.2f} W flow, {sum(K):.2f} W boundary conduction) "
                       f"vs {Q_conv:.2f} W convected from the solids"))
+
+    # Domain energy balance (cases with a wall on the domain boundary, which write radFlow_*):
+    # heat in = convection + conduction + radiation out through the open boundaries (+ cable
+    # ends). The wall is adiabatic, so it is not a term: if it exchanges radiation (a black
+    # wall emitting at its own temperature put ~3 W into a 9.22 W case) the balance fails.
+    back = (cfg.get("heatsink") or {}).get("back", "free")
+    wall = "back" if back == "wall" else "back_wall" if isinstance(back, dict) else None
+    R_open, R_wall = {}, {}
+    for f in sorted((case / "postProcessing" / "air").glob("radFlow_*")):
+        v = series(case, "air", f.name, "surfaceFieldValue.dat")
+        if v:
+            p = f.name.removeprefix("radFlow_")
+            (R_wall if p == wall else R_open)[p] = tail_mean(v)[0]
+    if H and (R_open or R_wall):
+        Q_dom = sum(H) + sum(K) + sum(R_open.values()) + Q_end
+        bal_dom = (Q_dom - P_in) / P_in if P_in else 0.0
+        gates.append(("Domain energy balance within 2 % (walls adiabatic)", abs(bal_dom) <= 0.02,
+                      f"{Q_dom:.3f} W out ({sum(H) + sum(K):.3f} W convection and conduction, "
+                      f"{sum(R_open.values()):.3f} W radiation through the open boundaries"
+                      + (f", {Q_end:.3f} W through cable ends" if end_series else "")
+                      + f") vs {P_in:.3f} W in ({100 * bal_dom:+.1f} %); net radiation out through "
+                      + (", ".join(f"wall {k} {v:+.3f} W" for k, v in R_wall.items()) or "the wall: no data")
+                      + " (should be 0)"))
 
     bal = (Q_out - P_in) / P_in if P_in else 0.0
     gates.append(("Energy balance within 2 %", abs(bal) <= 0.02,
