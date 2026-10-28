@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-28)
 ## Current Position
 
 Phase: 1 of 5 (Baseline, validation fixes and report)
-Plan: 6 of 9 in current phase
-Status: In progress (wave 6: 01-06 and 01-09 in parallel)
-Last activity: 2026-10-29 — Wave 5 done: 01-08 sink-only back wall + foam; plate-fin R coarse 2.413, normal 2.422 K/W (+6.2 %, inside ±2u = ±6.6 %), all checks pass
+Plan: 8 of 9 in current phase
+Status: Waiting for user decision (radiation ray default) before wave 7 (01-07)
+Last activity: 2026-10-29 — Wave 6 done: 01-06 new figures + measured vs CFD (relative to TCb within 0.08 K); 01-09 radiation-neutral walls + domain energy gate
 
-Progress: [███████░░░] 67% (6 of 9 plans in phase 1)
+Progress: [█████████░] 89% (8 of 9 plans in phase 1)
 
 ## Performance Metrics
 
@@ -57,6 +57,8 @@ Recent decisions affecting current work:
 - hand_calc.py zero-device output prints "Base under board" and "R_sink-air" twice (cosmetic).
 
 ### Blockers/Concerns
+
+- DECISION PENDING: default `solver.radiation_rays` [3, 3] has odd nTheta; the middle polar band straddles the horizontal, so up/down faces see 3/4 of the hemisphere and low-emissivity faces absorb ~+80 W/m2 that does not exist (balances still close). Plate-fin coarse: [3, 4] gives R 2.308 K/W (+1.2 %) vs 2.413 (+5.8 %). Infineon runs used --fast-radiation [2, 2] (even nTheta) and are unaffected.
 
 - Known issues carried from v0.1.0: warm-up 2× faster than the Infineon measurement; 1.5 K end offset of the lumped warm-up (v2: WARM-01, WARM-02).
 
