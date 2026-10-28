@@ -16,6 +16,7 @@ calculation and energy balances, and the report says what was assumed.
 
 - [ ] **FIX-01**: A case can heat the sink without devices (`board.power_W`, or a `heat_source: base` option); the plate-fin validation uses it instead of a flat "heater" device
 - [ ] **FIX-02**: SKILL.md and the example YAML say that `emissivity` is set per device and that the 0.9 default suits mould compound, not metal or foil
+- [ ] **FIX-04**: `heatsink.back` can put the adiabatic wall only behind the sink (`{wall: footprint}` or a rectangle), open air elsewhere; the plate-fin validation uses it and shows per-channel plumes like Kirinčić Fig. 10
 - [ ] **FIX-03**: SKILL.md advises more iterations (about 3000) for low-power free convection when "heat flow settled" just fails
 
 ### Report and figures
@@ -89,7 +90,7 @@ calculation and energy balances, and the report says what was assumed.
 |-------------|-------|--------|
 | BASE-01 | Phase 1 | Pending |
 | BASE-02 | Phase 5 | Pending |
-| FIX-01, FIX-02, FIX-03 | Phase 1 | Pending |
+| FIX-01, FIX-02, FIX-03, FIX-04 | Phase 1 | Pending |
 | REP-01, REP-02, REP-03 | Phase 1 | Pending |
 | ENV-01 – ENV-05 | Phase 2 | Pending |
 | LOSS-01 – LOSS-04 | Phase 3 | Pending |
@@ -97,8 +98,8 @@ calculation and energy balances, and the report says what was assumed.
 | REL-01 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 23 total
-- Mapped to phases: 23
+- v1 requirements: 24 total
+- Mapped to phases: 24
 - Unmapped: 0
 
 ---
