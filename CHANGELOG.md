@@ -18,6 +18,11 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
   heat-sink benchmarks and datasheet R_sa checks. The hand calc and `report.py` then give the
   base and board temperature instead of junction temperatures. The plate-fin validation uses
   this instead of a "heater" device (coarse CFD: base 49.4 °C, 2.21 K/W, −3 % vs measured).
+- `heatsink.back: {wall: footprint}` and `{wall: {y_mm: [a, b], z_mm: [c, d]}}`: an adiabatic wall
+  only behind the sink (or over that rectangle), open air on the rest of the back boundary (patch
+  `back_wall`, split off `back` with topoSet + createPatch). For a heater, vessel or housing no
+  larger than the sink; `wall` (whole back boundary) stays for a mounting plate or enclosure wall.
+  `free` and `wall` cases are unchanged byte for byte.
 - GSD planning in `.planning/` (project, requirements, roadmap for 0.2.0, the v0.2 PRD). It is
   not part of the skill package and is left out of the package hash.
 

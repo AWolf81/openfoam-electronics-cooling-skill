@@ -35,7 +35,13 @@ of how much it moves the junction temperature:
 3. **Heat sink:** width, length (vertical, along the fins), base thickness, fin count,
    thickness, height, alloy, surface finish. Free-convection fins must run vertically; if the
    user's sink is horizontal, say that it loses much of its performance and model it as given
-   only after flagging this.
+   only after flagging this. Ask what is behind the sink (`heatsink.back`): open air (`free`,
+   default); a mounting plate or enclosure wall that covers the whole back (`wall`: an
+   adiabatic wall over the whole back boundary, full domain height); or only a heater, vessel
+   or housing as large as the sink with open air above and below (`{wall: footprint}`, or
+   `{wall: {y_mm: [a, b], z_mm: [c, d]}}` for another rectangle in sink coordinates). Do not
+   use `wall` for a part only as large as the sink: the 450 mm tall wall holds the plume
+   against it and the channels lose their separate plumes.
 4. **Emissivity.** Black anodised 0.85-0.9, bare or milled aluminium 0.05-0.1. In free
    convection radiation carries 25-45 % of the heat of an anodised sink, so this is not a
    detail. It is set per part: `heatsink.emissivity` (default 0.85), `board.emissivity`,
@@ -270,7 +276,8 @@ For pictures, open `case.foam` (or the `VTK/` folder) in ParaView.
 
 ## Extending
 
-- A wall behind the sink: `heatsink.back: wall`.
+- A wall behind the sink: `heatsink.back: wall` (whole back boundary) or `{wall: footprint}` /
+  `{wall: {y_mm, z_mm}}` (only that rectangle; the rest of the back boundary stays open).
 - More devices, idle devices (`conducts: false`) or fixed powers (`power_W`): add them under
   `devices`.
 - A patterned spreader (the Cu core of a QIT board is cut into tracks): `board.islands`, each
