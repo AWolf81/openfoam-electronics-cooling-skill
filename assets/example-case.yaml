@@ -46,6 +46,7 @@ devices:
     centre_mm: [67, 80]
     rth_jc: 0.4               # CHECK: K/W junction to exposed pad
     tj_max_C: 175
+    # emissivity: 0.9         # default, suits mould compound; 0.03-0.1 for bare metal or foil
   - name: q2
     size_mm: [10, 15, 4.5]
     centre_mm: [83, 80]

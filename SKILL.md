@@ -38,7 +38,12 @@ of how much it moves the junction temperature:
    only after flagging this.
 4. **Emissivity.** Black anodised 0.85-0.9, bare or milled aluminium 0.05-0.1. In free
    convection radiation carries 25-45 % of the heat of an anodised sink, so this is not a
-   detail.
+   detail. It is set per part: `heatsink.emissivity` (default 0.85), `board.emissivity`,
+   `devices[].emissivity` and `solids[].emissivity` (default 0.9). 0.9 suits mould compound and
+   solder mask; a metal part, a bare lug or a heat source covered in foil or insulation needs
+   0.03-0.1, otherwise it radiates where the real one does not. In the plate-fin validation a
+   heater left at 0.9 radiated 0.6 W of 9.2 W out of its insulated back and the energy balance
+   was off by +5-7 %; at 0.03 it was +1-1.5 %.
 5. **Board stack** (`board:` in the YAML), written as the board is really built, top to
    bottom: the layers under each part (solder, copper, dielectric or via-filled prepreg), the
    **spreader** that carries heat sideways and is meshed (Al substrate of an IMS, Cu core of a
