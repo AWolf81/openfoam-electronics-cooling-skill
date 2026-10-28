@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:   # re-run for an existing tag, e.g. when the tag push did not trigger it
+    inputs:
+      tag:
+        description: "Existing tag to release, e.g. v0.1.0"
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: write
@@ -12,12 +20,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
       - name: Check version, hash and changelog
         id: check
         run: |
           set -euo pipefail
           out=${RUNNER_TEMP:?}   # keep the checkout untouched: every file in it is hashed
-          tag=${GITHUB_REF_NAME}; ver=${tag#v}
+          tag=${TAG}; ver=${tag#v}
           [ "$(cat VERSION)" = "$ver" ] || { echo "VERSION is $(cat VERSION), tag is $tag"; exit 1; }
           hash=$(.github/package-hash.sh)
           grep -q "| $ver | \`$hash\` |" README.md || { echo "README.md does not list $hash for $ver"; exit 1; }
@@ -45,5 +55,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/SHA256SUMS" \
-            --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release-notes.md" --verify-tag
+          gh release create "$TAG" "$RUNNER_TEMP/SHA256SUMS" \
+            --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md" --verify-tag
