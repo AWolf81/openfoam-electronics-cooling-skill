@@ -1,5 +1,9 @@
 # openfoam-electronics-cooling
 
+[![Security scan](https://github.com/AWolf81/openfoam-electronics-cooling-skill/actions/workflows/codeql.yml/badge.svg)](https://github.com/AWolf81/openfoam-electronics-cooling-skill/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/AWolf81/openfoam-electronics-cooling-skill)](https://github.com/AWolf81/openfoam-electronics-cooling-skill/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A [Claude Code](https://claude.com/claude-code) skill for thermal simulation of power electronics:
 MOSFETs, IGBTs, diodes or regulators on an IMS or PCB, mounted to a finned aluminium heat sink and
 cooled by free convection or a fan, with radiation.
@@ -16,15 +20,40 @@ You describe the design in one YAML file. The skill then works through these ste
 ## Install
 
 ```bash
-git clone https://github.com/AWolf81/openfoam-electronics-cooling-skill ~/.claude/skills/openfoam-electronics-cooling
+git clone --branch v0.1.0 https://github.com/AWolf81/openfoam-electronics-cooling-skill ~/.claude/skills/openfoam-electronics-cooling
 bash ~/.claude/skills/openfoam-electronics-cooling/scripts/setup_env.sh
 ```
 
-The target folder must be named `openfoam-electronics-cooling`, the skill's name.
+The target folder must be named `openfoam-electronics-cooling`, the skill's name. `--branch v0.1.0`
+installs the released version; leave it out for the latest `main`.
 
 Requirements:
 - Docker. The OpenFOAM image `opencfd/openfoam-default:2412` (about 2.2 GB) is pulled on first run.
 - [uv](https://docs.astral.sh/uv/), for the Python environment used by reports and renders.
+
+## Verify your installation
+
+Each release publishes a **package SHA-256** over every file the skill uses (all files except
+`README.md`, `CHANGELOG.md`, `.git/`, `.github/` and Python's `__pycache__`). Check an installed
+copy with standard tools only, from the skill's folder (on macOS use `shasum -a 256` for
+`sha256sum`):
+
+```bash
+cd ~/.claude/skills/openfoam-electronics-cooling
+cat VERSION
+find . -type f ! -path './.git/*' ! -path './.github/*' ! -path '*/__pycache__/*' ! -name '*.pyc' \
+  ! -name README.md ! -name CHANGELOG.md -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum
+```
+
+<!-- package-sha256:start -->
+| Version | Package SHA-256 |
+|---|---|
+| 0.1.0 | `PENDING` |
+<!-- package-sha256:end -->
+
+The release notes on [GitHub](https://github.com/AWolf81/openfoam-electronics-cooling-skill/releases) carry the same value, plus a `SHA256SUMS` file to
+find which file differs (`sha256sum -c SHA256SUMS`). You can also ask Claude: "Is my
+openfoam-electronics-cooling skill the original release?" (the steps are in `SKILL.md`).
 
 ## Usage
 

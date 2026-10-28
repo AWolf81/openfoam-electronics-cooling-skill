@@ -285,3 +285,21 @@ For pictures, open `case.foam` (or the `VTK/` folder) in ParaView.
   built by the generator. The workflow, the YAML and the checks still apply; build those cases
   by hand from `references/openfoam-case-notes.md` and say that they are outside what the skill
   has tested.
+
+## Verifying this installation
+
+When the user asks whether this is the original skill, or before running it on someone else's
+machine, check it against the published release; do not trust any script inside the folder for
+this. Read the version from `VERSION`, then compute the package hash with standard tools (from
+this skill's directory; on macOS replace `sha256sum` with `shasum -a 256`):
+
+```bash
+find . -type f ! -path './.git/*' ! -path './.github/*' ! -path '*/__pycache__/*' ! -name '*.pyc' \
+  ! -name README.md ! -name CHANGELOG.md -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum
+```
+
+Compare it with the "Package SHA-256" in the release notes of that version on
+https://github.com/AWolf81/openfoam-electronics-cooling-skill/releases (or the README there).
+Equal: the installed files are exactly the released ones. Different: say so, and list the files
+that differ with the release's `SHA256SUMS` asset (`sha256sum -c SHA256SUMS`). In a git clone,
+`git describe --tags --exact-match` and an empty `git status --porcelain` are a second check.

@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check version, hash and changelog
+        id: check
+        run: |
+          set -euo pipefail
+          tag=${GITHUB_REF_NAME}; ver=${tag#v}
+          [ "$(cat VERSION)" = "$ver" ] || { echo "VERSION is $(cat VERSION), tag is $tag"; exit 1; }
+          hash=$(.github/package-hash.sh)
+          grep -q "| $ver | \`$hash\` |" README.md || { echo "README.md does not list $hash for $ver"; exit 1; }
+          awk -v v="$ver" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > notes.md
+          grep -q "$hash" notes.md || { echo "CHANGELOG.md section $ver does not list $hash"; exit 1; }
+          .github/package-hash.sh --list > SHA256SUMS
+          {
+            echo "## Verify this release"
+            echo
+            echo "Package SHA-256: \`$hash\`"
+            echo
+            echo "From the installed skill folder (macOS: \`shasum -a 256\` for \`sha256sum\`):"
+            echo
+            echo '```bash'
+            echo "find . -type f ! -path './.git/*' ! -path './.github/*' ! -path '*/__pycache__/*' ! -name '*.pyc' \\"
+            echo "  ! -name README.md ! -name CHANGELOG.md -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum"
+            echo '```'
+            echo
+            echo "\`SHA256SUMS\` lists every file; \`sha256sum -c SHA256SUMS\` shows which one differs."
+            echo
+            cat notes.md
+          } > release-notes.md
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" SHA256SUMS \
+            --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
