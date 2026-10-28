@@ -61,7 +61,9 @@ airflow: {mode: free}         # free convection + radiation. With a fan:
 #   fin tips); channel_ratio = fin-channel / approach velocity, measured with
 #   scripts/channel_flow.py; turbulence = k-omega SST with a turbulent fan inlet (use it with a fan)
 
-# report: {style: ir, view_up: z, mirror: false, ir_floor_K: 0}   # CFD figure and video
+# report: {style: cfd}   # CFD figures and video: cfd (default; Turbo colours, smooth fields, 3D view,
+#   like the figures in CFD papers) or ir (thermal-camera views of both sides, IR palette; only to
+#   compare with a thermal camera image: then also view_up z | -z, mirror, ir_floor_K, ir_range [lo, hi])
 
 mesh:
   resolution: normal          # coarse (smoke test), normal, fine (mesh-independence check)

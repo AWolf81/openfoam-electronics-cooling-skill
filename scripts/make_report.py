@@ -44,7 +44,7 @@ from make_case import solids  # noqa: E402
 import warmup  # noqa: E402
 
 COLORS = {"heatsink": "#b8bec6", "ims": "#3f8f5a", "device": "#1d1d1f", "solid": "#d98c2b"}
-CMAP = "inferno"
+IR_PLUME_CMAP = "inferno"   # air section in report style ir (kept as it was; a camera cannot see air)
 
 
 # ---------------------------------------------------------------- helpers
@@ -290,8 +290,61 @@ IR = matplotlib.colors.LinearSegmentedColormap.from_list("ir", [
     (0.613, "#e5306a"), (0.697, "#f2541f"), (0.779, "#ff7a10"), (0.863, "#ffa500"),
     (0.940, "#ffd21a"), (1.000, "#fff9b0")])
 IR_OVER, IR_UNDER = "#ffffff", "#d4d4d4"
-STYLE = {"style": "ir", "view_up": "z", "mirror": False, "ir_floor_K": 0.0, "ir_range": None, "ir_blur_mm": 1.0,
-         "ir_edges": True, "ir_board_blur_mm": 3.0}
+STYLE = {"style": "cfd", "view_up": "z", "mirror": False, "ir_floor_K": 0.0, "ir_range": None, "ir_blur_mm": 1.0,
+         "ir_edges": True, "ir_board_blur_mm": 3.0, "cfd_levels": 256}
+
+
+# ---------------------------------------------------------------- CFD style (report.style cfd)
+# Read like the Fluent figures of CFD papers (e.g. Kirincic et al. 2025, Thermo 5, 57, Figs.
+# 10-12): blue cold -> red hot, legend "Temperature [°C]" on the left with ~11 ticks. Turbo
+# instead of the Fluent rainbow: same colour order, but its lightness changes smoothly, so it
+# draws no false edges. Fields are point data (interpolated between cell centres) and mapped
+# per pixel, in 256 levels (continuous; report.cfd_levels: 64 gives visible bands). Lighting is
+# off so a colour means the same temperature everywhere; black feature edges show the shape.
+# Scales: sections and the video from ambient to the hottest value (global); the 3D view of the
+# solids from their coldest to their hottest point (local scale, like the paper's Fig. 12).
+
+def cfd_cmap():
+    return matplotlib.colormaps["turbo"].resampled(int(STYLE["cfd_levels"]))
+
+
+def cfd_add(p, mesh, scalars, clim, edges=False):
+    """A temperature field in the CFD style: point data, interpolated before mapping, unlit."""
+    p.add_mesh(mesh, scalars=scalars, preference="point", cmap=cfd_cmap(), clim=clim,
+               n_colors=int(STYLE["cfd_levels"]), interpolate_before_map=True, lighting=False,
+               show_scalar_bar=False)
+    if edges:
+        e = mesh.extract_surface(algorithm="dataset_surface").extract_feature_edges(
+            feature_angle=30, boundary_edges=False, non_manifold_edges=False, manifold_edges=False)
+        if e.n_points:
+            p.add_mesh(e, color="black", line_width=1.2, lighting=False)
+
+
+def cfd_colorbar(fig, rect, clim, label="Temperature [°C]"):
+    """Legend as in the paper: on the left, vertical, title above, ~11 ticks with one decimal
+    (two when the range is under 2 K)."""
+    cax = fig.add_axes(rect)
+    cb = fig.colorbar(plt.cm.ScalarMappable(matplotlib.colors.Normalize(*clim), cfd_cmap()), cax=cax)
+    # round values inside the range (the ends stay at ambient / the hottest point)
+    ticks = matplotlib.ticker.MaxNLocator(nbins=11, steps=[1, 2, 2.5, 5, 10]).tick_values(*clim)
+    step = ticks[1] - ticks[0]
+    ticks = ticks[(ticks > clim[0] + 0.4 * step) & (ticks < clim[1] - 0.4 * step)]
+    ticks = np.concatenate([[clim[0]], ticks, [clim[1]]])     # the ends labelled, as in the paper
+    nd = 2 if clim[1] - clim[0] < 2 else 1
+    cb.set_ticks(ticks)
+    cb.ax.set_yticklabels([f"{t:.{nd}f}" for t in ticks], fontsize=10, color="black")
+    cb.outline.set_linewidth(0.6)
+    cax.set_title(label, fontsize=11, loc="left", pad=10, color="black")
+    return cb
+
+
+def _crop(img, pad=12):
+    """Cut the white border off a screenshot."""
+    keep = np.where((img[..., :3] < 250).any(axis=2))
+    if not keep[0].size:
+        return img
+    y0, y1, x0, x1 = keep[0].min(), keep[0].max(), keep[1].min(), keep[1].max()
+    return img[max(y0 - pad, 0):y1 + pad + 1, max(x0 - pad, 0):x1 + pad + 1]
 
 
 def ir_clim(Ta, tmax):
@@ -458,29 +511,39 @@ def fig_cfd_solids(cfg, regions, path: Path, clim):
     plt.close(fig)
 
 
-def fig_cfd_solids_3d(cfg, regions, path: Path, clim):
+def fig_cfd_solids_3d(cfg, regions, path: Path, clim=None):
+    """3D views of the solids in the CFD style, on a local scale (coldest to hottest solid)."""
     pv = _pv()
-    p = pv.Plotter(off_screen=True, shape=(1, 2), window_size=(1600, 750), border=False)
-    views = [((1, -1.2, 0.8), "Fin side"), ((-1, -1.1, 0.6), "Device side")]
-    for col, (view, title) in enumerate(views):
-        p.subplot(0, col)
-        for name, m in regions.items():
-            if name == "air":
-                continue
-            mm = m.copy()
-            mm.points *= 1 / MM
-            mm["T (C)"] = mm["T"] - 273.15
-            p.add_mesh(mm, scalars="T (C)", cmap=CMAP, clim=clim, show_scalar_bar=(col == 1),
-                       scalar_bar_args={"title": "T (C)", "vertical": True, "position_x": 0.86,
-                                        "position_y": 0.15, "height": 0.7, "width": 0.06})
-        p.add_text(title, font_size=12)
+    meshes = solid_meshes(regions)
+    clim = (min(float(m.point_data["Tss"].min()) for m in meshes.values()),
+            max(float(m.point_data["Tss"].max()) for m in meshes.values()))
+    if clim[1] - clim[0] < 0.05:
+        clim = (clim[0] - 0.05, clim[1] + 0.05)
+    imgs = []
+    for view in ((1, -1.2, 0.8), (-1, -1.1, 0.6)):
+        p = pv.Plotter(off_screen=True, window_size=(1000, 820))
+        p.set_background("white")
+        for mm in meshes.values():
+            cfd_add(p, mm, "Tss", clim, edges=True)
         frame(p, view, 1.0)
-    p.screenshot(str(path))
-    p.close()
+        imgs.append(_crop(p.screenshot(return_img=True)))
+        p.close()
+    fig = plt.figure(figsize=(16, 7))
+    gs = fig.add_gridspec(1, 2, left=0.12, right=0.99, bottom=0.02, top=0.9, wspace=0.04)
+    for k, (img, t) in enumerate(zip(imgs, ("Fin side", "Device side"))):
+        a = fig.add_subplot(gs[k])
+        a.imshow(img)
+        a.set_title(t, fontsize=12)
+        a.axis("off")
+    cfd_colorbar(fig, [0.035, 0.12, 0.018, 0.66], clim)
+    nd = 2 if clim[1] - clim[0] < 2 else 1
+    fig.suptitle(f"CFD steady state, solids (local scale {clim[0]:.{nd}f} to {clim[1]:.{nd}f} °C)", fontsize=13)
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
 
 
-def fig_cfd_plume(cfg, regions, path: Path):
-    pv = _pv()
+def _plume_section(cfg, regions):
+    """The air in a vertical section through the heat sources (mm), clipped near the sink, and its y."""
     air = regions["air"].copy()
     air.points *= 1 / MM
     # through the conducting devices (the heat sources), 0.37 mm off so the cut misses grid faces
@@ -492,19 +555,74 @@ def fig_cfd_plume(cfg, regions, path: Path):
         y0 = (iy0 + iy1) / 2 / MM + 0.37
     s_ = cfg.sink
     near = (-60.0, (s_["base"] + s_["fin_h"]) / MM + 60.0, -1e9, 1e9, -40.0, s_["length"] / MM + 220.0)
-    sl = air.slice(normal="y", origin=(0, y0, 0)).clip_box(near, invert=False)
+    return air.slice(normal="y", origin=(0, y0, 0)).clip_box(near, invert=False), y0
+
+
+def _flow_arrows(pv, sl, n=900, moving_only=False):
+    # every n-th point directly; extract_points(adjacent_cells=False) keeps only cells whose
+    # points are all picked and returns nothing for some strides
+    k = max(1, sl.n_points // n)
+    pick = np.arange(0, sl.n_points, k)
+    if moving_only:   # no arrows on the walls (U = 0 would draw them along x)
+        pick = pick[np.linalg.norm(sl.point_data["U"][pick], axis=1) > 1e-4]
+    pts = pv.PolyData(sl.points[pick])
+    pts["U"] = sl.point_data["U"][pick]
+    return pts.glyph(orient="U", scale=False, factor=4.0)
+
+
+def fig_cfd_plume(cfg, regions, path: Path, clim=None):
+    if STYLE["style"] == "ir":
+        return fig_cfd_plume_ir(cfg, regions, path)
+    pv = _pv()
+    sl, y0 = _plume_section(cfg, regions)
+    sl.point_data["T (C)"] = sl.point_data["T"] - 273.15
+    p = pv.Plotter(off_screen=True, window_size=(1500, 2000))
+    p.set_background("white")
+    cfd_add(p, sl, "T (C)", clim)
+    for name in solids(cfg):          # the solids in the cut, on the same scale
+        if name in regions:
+            m = regions[name].copy()
+            m.points *= 1 / MM
+            cut = m.slice(normal="y", origin=(0, y0, 0))
+            if cut.n_points:
+                cut.point_data["T (C)"] = cut.point_data["T"] - 273.15
+                cfd_add(p, cut, "T (C)", clim)
+                p.add_mesh(cut.extract_feature_edges(boundary_edges=True, feature_edges=False,
+                                                     non_manifold_edges=False, manifold_edges=False),
+                           color="black", line_width=1.2, lighting=False)
+    if "U" in sl.point_data and sl.n_points:
+        p.add_mesh(_flow_arrows(pv, sl, 500, moving_only=True), color="white", opacity=0.7, lighting=False)
+    frame(p, (0, -1, 0), 1.05)   # camera at -y looking +y: x (out of the fins) to the right, z up
+    img = _crop(p.screenshot(return_img=True))
+    p.close()
+    h, w = img.shape[:2]
+    hi = 8.5                                   # image size in inches, at most 8.5 high, 10 wide
+    wi = min(10.0, hi * w / h)
+    hi = wi * h / w
+    L, R, B, T = 2.0, max(0.2, 4.4 - wi), 0.2, 0.8            # margins: legend on the left, title on top
+    W, H = L + wi + R, B + hi + T
+    fig = plt.figure(figsize=(W, H))
+    a = fig.add_axes([L / W, B / H, wi / W, hi / H])
+    a.imshow(img)
+    a.axis("off")
+    fig.suptitle(f"Vertical section through the {'devices' if cfg.devices else 'board centre'} "
+                 f"(y = {y0:.0f} mm)\nleft: device side, right: fin side; arrows: air flow", fontsize=10)
+    cfd_colorbar(fig, [0.35 / W, (B + 0.15 * hi) / H, 0.28 / W, 0.7 * hi / H], clim)
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
+
+
+def fig_cfd_plume_ir(cfg, regions, path: Path):
+    """Air section for report style ir: as before (inferno, cell colours, grey solids)."""
+    pv = _pv()
+    sl, y0 = _plume_section(cfg, regions)
     sl["T (C)"] = sl["T"] - 273.15
     p = pv.Plotter(off_screen=True, window_size=(900, 1200))
-    p.add_mesh(sl, scalars="T (C)", cmap=CMAP,
+    p.add_mesh(sl, scalars="T (C)", cmap=IR_PLUME_CMAP,
                scalar_bar_args={"title": "Air T (C)", "vertical": True, "position_x": 0.85,
                                 "position_y": 0.2, "height": 0.6, "width": 0.07})
     if "U" in sl.point_data and sl.n_points:
-        # every n-th point directly; extract_points(adjacent_cells=False) keeps only cells whose
-        # points are all picked and returns nothing for some strides
-        k = max(1, sl.n_points // 900)
-        pts = pv.PolyData(sl.points[::k])
-        pts["U"] = sl.point_data["U"][::k]
-        p.add_mesh(pts.glyph(orient="U", scale=False, factor=4.0), color="cyan", opacity=0.55)
+        p.add_mesh(_flow_arrows(pv, sl), color="cyan", opacity=0.55)
     for name in solids(cfg):
         if name in regions:
             m = regions[name].copy()
@@ -610,7 +728,7 @@ def video_heatup(cfg, regions, rows, summ, path: Path, fps=12, seconds=12):
 
 
 def video_heatup_3d(cfg, regions, rows, summ, path: Path, fps=12, seconds=10):
-    """3D view, inferno palette (report style 3d)."""
+    """3D view in the CFD style (report style cfd), one scale from ambient to the hottest frame."""
     import imageio.v2 as imageio
     pv = _pv()
     Ta = cfg.ambient_C
@@ -619,13 +737,11 @@ def video_heatup_3d(cfg, regions, rows, summ, path: Path, fps=12, seconds=10):
     tj_cols, hot_lab = hot_curve(cfg)
 
     p = pv.Plotter(off_screen=True, window_size=(900, 760))
+    p.set_background("white")
     for name, mm in meshes.items():
         mm.point_data["T (C)"] = np.full(mm.n_points, Ta)
-        p.add_mesh(mm, scalars="T (C)", cmap=CMAP, clim=clim,
-                   scalar_bar_args={"title": "T (C)", "vertical": True, "position_x": 0.86,
-                                    "position_y": 0.15, "height": 0.7, "width": 0.06})
-    frame(p, (-1, -1.1, 0.6), 1.0)
-    label = p.add_text(" ", position="upper_left", font_size=12)
+        cfd_add(p, mm, "T (C)", clim, edges=True)
+    frame(p, (-1, -1.1, 0.6), 1.5)   # fill the frame (no crop: every frame the same size)
 
     writer = imageio.get_writer(str(path), fps=fps, codec="libx264", quality=8, macro_block_size=8)
     try:
@@ -635,22 +751,24 @@ def video_heatup_3d(cfg, regions, rows, summ, path: Path, fps=12, seconds=10):
                 # write into the array the renderer holds; assigning a new array would not show
                 mm.point_data["T (C)"][:] = Ta + (mm.point_data["Tss"] - Ta) * scale(r, name)
                 mm.Modified()
-            label.set_text("upper_left", f"t = {tt / 60:5.1f} min   {hot_lab} = {max(r[c_] for c_ in tj_cols):.1f} C")
             p.render()
             frame3d = p.screenshot(return_img=True)
-            fig, ax = plt.subplots(1, 2, figsize=(14, 5.6), gridspec_kw={"width_ratios": [1.15, 1]})
-            ax[0].imshow(frame3d)
-            ax[0].axis("off")
+            fig = plt.figure(figsize=(14, 5.6))
+            a3 = fig.add_axes([0.1, 0.02, 0.47, 0.86])
+            a3.imshow(frame3d)
+            a3.axis("off")
+            a3.set_title(f"t = {tt / 60:5.1f} min   {hot_lab} = {max(r[c_] for c_ in tj_cols):.1f} °C", fontsize=12)
+            cfd_colorbar(fig, [0.03, 0.12, 0.014, 0.64], clim)
+            ax = fig.add_axes([0.63, 0.12, 0.35, 0.78])
             tm = t_all / 60
-            ax[1].plot(tm, [max(rr[c_] for c_ in tj_cols) for rr in rows], lw=2, label=hot_lab)
-            ax[1].plot(tm, [rr["T_sink_C"] for rr in rows], ":", lw=2, label="sink")
-            ax[1].axvline(tt / 60, color="tab:red")
-            ax[1].set_xlim(0, t_end / 60)
-            ax[1].set_xlabel("time (min)")
-            ax[1].set_ylabel("temperature (C)")
-            ax[1].grid(alpha=0.3)
-            ax[1].legend(loc="lower right")
-            fig.tight_layout()
+            ax.plot(tm, [max(rr[c_] for c_ in tj_cols) for rr in rows], lw=2, label=hot_lab)
+            ax.plot(tm, [rr["T_sink_C"] for rr in rows], ":", lw=2, label="sink")
+            ax.axvline(tt / 60, color="tab:red")
+            ax.set_xlim(0, t_end / 60)
+            ax.set_xlabel("time (min)")
+            ax.set_ylabel("temperature (°C)")
+            ax.grid(alpha=0.3)
+            ax.legend(loc="lower right")
             fig.canvas.draw()
             img = np.asarray(fig.canvas.buffer_rgba())[..., :3]
             plt.close(fig)
@@ -829,7 +947,10 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
     figure("path", "Figure 3: temperature along the heat path of the hottest device." if cfg.devices else
            "Figure 3: temperature along the heat path from the board to the air.", 14)
     if cfd:
-        figure("cfd_solids", "Figure 4: CFD temperature of all solid parts (same colour scale both views).")
+        figure("cfd_solids", "Figure 4: CFD temperature of all solid parts (same colour scale both views)."
+               if STYLE["style"] == "ir" else "Figure 4: CFD temperature of all solid parts (local colour scale "
+               "from the coldest to the hottest solid, same in both views; Figure 5 uses the full range "
+               "from ambient).")
         figure("plume", "Figure 5: air temperature and flow in a vertical section through the "
                + ("devices." if cfg.devices else "board centre."), 13)
         rows = [["Heat put in", f"{cfd['P_in']:.2f} W"], ["Heat leaving the solids", f"{cfd['Q_out']:.2f} W"],
@@ -896,8 +1017,9 @@ def main() -> int:
     ap.add_argument("--no-video", action="store_true")
     ap.add_argument("--hours", type=float, help="warm-up span (default: until 99 %% of the rise, "
                     "plus half again, in whole 5 minutes)")
-    ap.add_argument("--style", choices=["ir", "3d"], help="CFD figure and video: thermal-camera "
-                    "views of both sides (default) or a 3D view; also report.style in the YAML")
+    ap.add_argument("--style", choices=["cfd", "ir", "3d"], help="CFD figures and video: Turbo colour "
+                    "map, smooth fields, 3D view (cfd, default; 3d is an old name for it) or thermal-camera "
+                    "views of both sides, to compare with a camera image (ir); also report.style in the YAML")
     a = ap.parse_args()
     src = Path(a.source)
     case = src if src.is_dir() else None
@@ -905,10 +1027,14 @@ def main() -> int:
     cfg = load_config(cfg_path)
     rep = cfg.raw.get("report") or {}
     STYLE.update({k: rep[k] for k in ("style", "view_up", "mirror", "ir_floor_K", "ir_range", "ir_blur_mm",
-                                      "ir_edges", "ir_board_blur_mm")
+                                      "ir_edges", "ir_board_blur_mm", "cfd_levels")
                   if k in rep})
     if a.style:
         STYLE["style"] = a.style
+    if STYLE["style"] == "3d":
+        STYLE["style"] = "cfd"
+    if STYLE["style"] not in ("cfd", "ir"):
+        raise SystemExit(f"report.style must be cfd or ir, not {STYLE['style']!r}")
     # Outside the case folder: the case carries a CACHEDIR.TAG and is left out of backups, the
     # report and the configs that reproduce it are not.
     out = Path(a.out) if a.out else (case.parent / f"{case.name}-report" if case else Path("report"))
@@ -963,7 +1089,7 @@ def main() -> int:
         clim = (cfg.ambient_C, max(all_T))
         fig_cfd_solids(cfg, regions, figs["cfd_solids"], clim)
         if "air" in regions:
-            fig_cfd_plume(cfg, regions, figs["plume"])
+            fig_cfd_plume(cfg, regions, figs["plume"], clim)
     fig_temperature_path(cfg, hc, cfd if cfd and (cfd.get("Tj_C") if cfg.devices else cfd.get("T_base_C"))
                          else None, figs["path"])
 
