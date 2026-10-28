@@ -48,7 +48,7 @@ find . -type f ! -path './.git/*' ! -path './.github/*' ! -path '*/__pycache__/*
 <!-- package-sha256:start -->
 | Version | Package SHA-256 |
 |---|---|
-| 0.1.0 | `PENDING` |
+| 0.1.0 | `9eff3e2fa99f50819d11e9b57a82c7854805a9d609cefd282b2e44b106a1ad24` |
 <!-- package-sha256:end -->
 
 The release notes on [GitHub](https://github.com/AWolf81/openfoam-electronics-cooling-skill/releases) carry the same value, plus a `SHA256SUMS` file to

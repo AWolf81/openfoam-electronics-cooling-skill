@@ -13,7 +13,7 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
 
 First release.
 
-Package SHA-256: `<!-- package-sha256 -->`
+Package SHA-256: `9eff3e2fa99f50819d11e9b57a82c7854805a9d609cefd282b2e44b106a1ad24`
 
 ### Added
 
