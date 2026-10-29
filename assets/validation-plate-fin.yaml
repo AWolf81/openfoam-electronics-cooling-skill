@@ -87,7 +87,7 @@ airflow: {mode: free}
 #     edge of the base, mid-width; its depth is not dimensioned -> 0.5 mm inside the base, y = 61.5,
 #     z = 90 (10 mm in from the top edge). In the CFD the contact face spans ~0.3 K bottom to top.
 # The experiment held the base at 50.0 C and measured 9.22 W; this model puts in the 9.22 W, so
-# its temperatures run ~1.4 K high (R +6 %). T - T(TCb) tests the temperature distribution on its
+# its temperatures run ~0.5 K high (R +1.2 to +1.5 %). T - T(TCb) tests the temperature distribution on its
 # own; the report gives both.
 measurements:
   - {name: TCb, point_mm: [0.5, 61.5, 90], value_C: 50.0, uncertainty_K: 0.2, reference: true,

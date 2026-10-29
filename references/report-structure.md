@@ -67,7 +67,7 @@ comparison (`report.style: ir`).
   University of Science and Technology (problem, model, mesh and boundary conditions, results,
   validation, conclusions) and SimScale's validation cases (setup, result plots, comparison with
   the reference, mesh study).
-- Kirinčić, M., Trp, A., Lenić, K. (2025). Thermo 5, 57. Plate-fin heat sink in free
+- Kirinčić, M., Fadiga, T., Delač, B. (2025). Thermo 5, 57. Plate-fin heat sink in free
   convection; figure types for the air, the sink and the comparison with thermocouples.
 - Kovesi, P. (2015). Good colour maps: how to design them. arXiv:1509.03700.
 
