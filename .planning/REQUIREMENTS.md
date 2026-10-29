@@ -9,23 +9,23 @@ calculation and energy balances, and the report says what was assumed.
 
 ### Baseline
 
-- [ ] **BASE-01**: A regression script builds every eval case and `assets/*.yaml` with v0.1.0 and with the working tree and reports any change in hand-calc output or generated case files
+- [x] **BASE-01**: A regression script builds every eval case and `assets/*.yaml` with v0.1.0 and with the working tree and reports any change in hand-calc output or generated case files
 - [ ] **BASE-02**: All existing evals still pass after each phase
 
 ### Validation fixes
 
-- [ ] **FIX-01**: A case can heat the sink without devices (`board.power_W`, or a `heat_source: base` option); the plate-fin validation uses it instead of a flat "heater" device
-- [ ] **FIX-02**: SKILL.md and the example YAML say that `emissivity` is set per device and that the 0.9 default suits mould compound, not metal or foil
-- [ ] **FIX-04**: `heatsink.back` can put the adiabatic wall only behind the sink (`{wall: footprint}` or a rectangle), open air elsewhere; the plate-fin validation uses it and shows per-channel plumes like Kirinčić Fig. 10
-- [ ] **FIX-05**: Adiabatic walls on the domain boundary carry zero net radiation, and the energy check includes radiation through the domain boundaries (found in 01-08: a full back wall radiated ~3 W of 9.22 W)
-- [ ] **FIX-06**: The default fvDOM ray set has an even polar count (horizontal faces see the full hemisphere); odd nTheta is rounded up with a warning; plate-fin re-validated (found in 01-09: R +5.8 % → about +1 %)
-- [ ] **FIX-03**: SKILL.md advises more iterations (about 3000) for low-power free convection when "heat flow settled" just fails
+- [x] **FIX-01**: A case can heat the sink without devices (`board.power_W`, or a `heat_source: base` option); the plate-fin validation uses it instead of a flat "heater" device
+- [x] **FIX-02**: SKILL.md and the example YAML say that `emissivity` is set per device and that the 0.9 default suits mould compound, not metal or foil
+- [x] **FIX-04**: `heatsink.back` can put the adiabatic wall only behind the sink (`{wall: footprint}` or a rectangle), open air elsewhere; the plate-fin validation uses it and shows per-channel plumes like Kirinčić Fig. 10
+- [x] **FIX-05**: Adiabatic walls on the domain boundary carry zero net radiation, and the energy check includes radiation through the domain boundaries (found in 01-08: a full back wall radiated ~3 W of 9.22 W)
+- [x] **FIX-06**: The default fvDOM ray set has an even polar count (horizontal faces see the full hemisphere); odd nTheta is rounded up with a warning; plate-fin re-validated (found in 01-09: R +5.8 % → about +1 %)
+- [x] **FIX-03**: SKILL.md advises more iterations (about 3000) for low-power free convection when "heat flow settled" just fails
 
 ### Report and figures
 
-- [ ] **REP-01**: CFD figures use the Turbo colour map with smooth point-interpolated fields and a "Temperature [°C]" legend, aligned with Kirinčić et al. 2025 Figs. 10–12 but smoother; `report.style: cfd` (default) or `ir` (thermal-camera comparisons)
-- [ ] **REP-02**: The report shows air section planes (mid fin height, mid width), velocity vectors, a local-scale 3D heat-sink view, and simulated vs measured values when the YAML has `measurements:`
-- [ ] **REP-03**: Reports follow `references/report-structure.md`: 1 Result, 2 Inputs, 3 Results, 4 Comparison with measurement, 5 Time behaviour, 6 Checks, each figure shown only when its condition holds
+- [x] **REP-01**: CFD figures use the Turbo colour map with smooth point-interpolated fields and a "Temperature [°C]" legend, aligned with Kirinčić et al. 2025 Figs. 10–12 but smoother; `report.style: cfd` (default) or `ir` (thermal-camera comparisons)
+- [x] **REP-02**: The report shows air section planes (mid fin height, mid width), velocity vectors, a local-scale 3D heat-sink view, and simulated vs measured values when the YAML has `measurements:`
+- [x] **REP-03**: Reports follow `references/report-structure.md`: 1 Result, 2 Inputs, 3 Results, 4 Comparison with measurement, 5 Time behaviour, 6 Checks, each figure shown only when its condition holds
 
 ### Altitude (PRD R1)
 
@@ -90,10 +90,10 @@ calculation and energy balances, and the report says what was assumed.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BASE-01 | Phase 1 | Pending |
+| BASE-01 | Phase 1 | Complete |
 | BASE-02 | Phase 5 | Pending |
-| FIX-01, FIX-02, FIX-03, FIX-04, FIX-05, FIX-06 | Phase 1 | Pending |
-| REP-01, REP-02, REP-03 | Phase 1 | Pending |
+| FIX-01, FIX-02, FIX-03, FIX-04, FIX-05, FIX-06 | Phase 1 | Complete |
+| REP-01, REP-02, REP-03 | Phase 1 | Complete |
 | ENV-01 – ENV-05 | Phase 2 | Pending |
 | LOSS-01 – LOSS-04 | Phase 3 | Pending |
 | LIM-01 – LIM-05 | Phase 4 | Pending |
@@ -106,4 +106,4 @@ calculation and energy balances, and the report says what was assumed.
 
 ---
 *Requirements defined: 2026-10-28*
-*Last updated: 2026-10-28 after Phase 1 planning (figure style and report structure added)*
+*Last updated: 2026-10-29 after Phase 1 completion*

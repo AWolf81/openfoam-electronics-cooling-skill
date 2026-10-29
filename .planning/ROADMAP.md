@@ -21,7 +21,7 @@ once the user has tried the skill locally.
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Baseline, validation fixes and report** - Regression harness; heat sinks without devices; emissivity/iteration guidance; paper-style figures and report structure
+- [x] **Phase 1: Baseline, validation fixes and report** - Regression harness; heat sinks without devices; emissivity/iteration guidance; paper-style figures and report structure
 - [ ] **Phase 2: Altitude** - Ambient pressure in the hand calc and the CFD (PRD R1)
 - [ ] **Phase 3: Loss consistency** - Loss at the CFD's Tj, a gate, and `--power-from` reruns (PRD R2)
 - [ ] **Phase 4: Limits and worst-case corners** - `limits:`, corner sweep, worst corner to CFD (PRD R3)
@@ -44,16 +44,16 @@ once the user has tried the skill locally.
 **Plans**: 10 plans in 8 waves
 
 Plans:
-- [ ] 01-01: Regression script (`.github/regression.sh`) and clean first run — wave 1
-- [ ] 01-02: Emissivity and iteration guidance (FIX-02, FIX-03) — wave 1
-- [ ] 01-03: Heat sinks without devices: model, hand calc, case, report; plate-fin re-validated (FIX-01) — wave 2
-- [ ] 01-04: Warm-up and Word report without devices — wave 3
-- [ ] 01-05: Turbo figure style, `report.style: cfd | ir`, user check against the paper (REP-01) — wave 4
-- [ ] 01-08: Back wall only behind the sink (`back: {wall: footprint}`); plate-fin rerun coarse + normal (FIX-04) — wave 5
-- [ ] 01-09: Radiation-neutral adiabatic walls; domain energy balance incl. radiation (FIX-05) — wave 6
-- [ ] 01-06: Air sections, velocity vectors, local-scale sink, measured vs simulated (REP-02) — wave 6
-- [ ] 01-10: Even radiation ray default, guard, plate-fin re-validated (FIX-06) — wave 7
-- [ ] 01-07: Report structure and figure rules (REP-03) — wave 8
+- [x] 01-01: Regression script (`.github/regression.sh`) and clean first run — wave 1
+- [x] 01-02: Emissivity and iteration guidance (FIX-02, FIX-03) — wave 1
+- [x] 01-03: Heat sinks without devices: model, hand calc, case, report; plate-fin re-validated (FIX-01) — wave 2
+- [x] 01-04: Warm-up and Word report without devices — wave 3
+- [x] 01-05: Turbo figure style, `report.style: cfd | ir`, user check against the paper (REP-01) — wave 4
+- [x] 01-08: Back wall only behind the sink (`back: {wall: footprint}`); plate-fin rerun coarse + normal (FIX-04) — wave 5
+- [x] 01-09: Radiation-neutral adiabatic walls; domain energy balance incl. radiation (FIX-05) — wave 6
+- [x] 01-06: Air sections, velocity vectors, local-scale sink, measured vs simulated (REP-02) — wave 6
+- [x] 01-10: Even radiation ray default, guard, plate-fin re-validated (FIX-06) — wave 7
+- [x] 01-07: Report structure and figure rules (REP-03) — wave 8
 
 ### Phase 2: Altitude
 **Goal**: Correct results away from sea level
@@ -123,7 +123,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 1. Baseline, validation fixes and report | v0.2.0 | 8/10 | In progress | - |
+| 1. Baseline, validation fixes and report | v0.2.0 | 10/10 | Complete | 2026-10-29 |
 | 2. Altitude | v0.2.0 | 0/2 | Not started | - |
 | 3. Loss consistency | v0.2.0 | 0/2 | Not started | - |
 | 4. Limits and worst-case corners | v0.2.0 | 0/3 | Not started | - |

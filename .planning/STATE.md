@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-10-28)
 
 **Core value:** Junction temperatures you can trust: every CFD result is checked against a hand calculation and energy balances, and the report says what was assumed.
-**Current focus:** Phase 1 — Baseline, validation fixes and report
+**Current focus:** Phase 2 — Altitude
 
 ## Current Position
 
-Phase: 1 of 5 (Baseline, validation fixes and report)
-Plan: 9 of 10 in current phase
-Status: In progress (wave 8: 01-07)
-Last activity: 2026-10-29 — Wave 7 done: 01-10 even ray default [3, 4]; plate-fin R coarse 2.308, normal 2.314 K/W (+1.5 %), TC deviations +0.45…+0.55 K absolute, +0.01…+0.10 K relative to TCb
+Phase: 2 of 5 (Altitude)
+Plan: 0 of 2 in current phase
+Status: Ready to plan
+Last activity: 2026-10-29 — Phase 1 complete and verified (29/29 must-haves); plate-fin R 2.314 K/W normal (+1.5 %), all checks pass
 
-Progress: [█████████░] 90% (9 of 10 plans in phase 1)
+Progress: [██░░░░░░░░] 20% (phase 1 of 5 complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
+- Total plans completed: 10
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -51,10 +51,11 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- SKILL.md: say that `devices` may be empty when `board.power_W` is set (fold into 01-07 docs).
-- Layout figure: dimension labels overlap axis numbers when the board covers the whole sink (cosmetic; 01-07 may fix).
+- Phase 1 closed the earlier todos (empty devices docs, layout labels, hand-calc duplicates, normal-mesh rerun).
+- Before 0.2.0: README docs/cfd-result.png is the IR comparison image (unchanged style); consider adding a Turbo figure of the plate-fin validation.
+- Leftover folder figure-style-check/0107-iter-infineon-cfd and validation/rijeka-plate-fin/smoke (recursive delete outside /tmp is blocked; remove by hand if wanted).
+
 - (done in 01-08: plume no longer clings to the wall; per-channel plumes still merge 15-20 mm above the sink, Fig. 10 not fully reproduced) `heatsink.back: wall` makes the WHOLE back boundary an adiabatic wall (full domain height). In the plate-fin case the plume then clings to it (normal mesh: centre-channel plume max at x = −2…3 mm, i.e. on the wall; fresh air enters through the fin tips at ~1 cm/s), so per-channel plumes as in Kirinčić Fig. 10 do not appear at mid fin height. Real setup: insulated vessel only behind the base, open air above. Candidate fix: wall only over the sink/vessel footprint (`back: {wall: footprint}`), rerun plate-fin and compare R and Fig. 10. Normal mesh R 2.242 K/W (−1.7 %), all checks pass.
-- hand_calc.py zero-device output prints "Base under board" and "R_sink-air" twice (cosmetic).
 
 ### Blockers/Concerns
 
@@ -65,5 +66,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-10-28
-Stopped at: Phase 1 planned; next is `/gsd:execute-phase 1`
+Stopped at: Phase 1 complete; next is `/gsd:plan-phase 2`
 Resume file: None
