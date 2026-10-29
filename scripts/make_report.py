@@ -9,6 +9,11 @@ imageio) and LibreOffice for the PDF. Writes into <case>-report/ next to the cas
   thermal-report.docx, thermal-report.pdf, heatup.mp4, figures/*.png, warmup.csv, and copies of
   case.yaml, case-meta.json and report.md. The case folder itself is tagged as a cache
   (CACHEDIR.TAG) and left out of backups; this folder is what gets backed up.
+
+The document follows references/report-structure.md: 1 Result (page 1), 2 Inputs and
+assumptions, 3 Results, 4 Comparison with measurement (only with measurements:, a
+report.camera_image or report.style ir), 5 Time behaviour (unless report.warmup: false),
+6 Checks (with --mesh-compare runs of the same design on other meshes).
 """
 
 from __future__ import annotations
@@ -150,6 +155,9 @@ def fig_layout(cfg, path: Path):
     a.annotate("air", xy=(s["width"] / MM + 12, s["length"] / MM * 0.8),
                xytext=(s["width"] / MM + 12, s["length"] / MM * 0.2),
                arrowprops=dict(arrowstyle="->", color="tab:blue", lw=2), color="tab:blue", ha="center")
+    # the dimension lines, their labels, the board label and the air arrow lie outside the sink:
+    # widen the data limits so they stay inside the axes, clear of the tick labels
+    a.update_datalim([(-24, -22), (s["width"] / MM + 16, s["length"] / MM + 10)])
     a.set_title("Back view (mounting face): " + ("device placement" if cfg.devices else "board placement"))
     a.set_xlabel("y (mm)")
     a.set_ylabel("z, up (mm)")
@@ -522,6 +530,7 @@ def fig_cfd_solids(cfg, regions, path: Path, clim):
     ir_panels(fig, gs, dev, fin, clim, f"CFD steady state, surface max {tmax:.1f} C", cfg)
     fig.savefig(path, dpi=130)
     plt.close(fig)
+    return clim
 
 
 def fig_cfd_solids_3d(cfg, regions, path: Path, clim=None):
@@ -1118,10 +1127,52 @@ def fig_measured_vs_cfd(rows, path: Path):
     return True
 
 
+# ---------------------------------------------------------------- mesh comparison
+
+def headline(case: Path):
+    """The case's answer, read as the report reads it: (label, value C) of the hottest junction
+    (case probe + loss x Rth j-c) or, without devices, the base temperature (tail mean of
+    Tbase_heatsink). None when the run has no such data."""
+    from report import series, tail_mean
+    cfg = load_config(case / "case.yaml")
+    meta = json.loads((case / "case-meta.json").read_text())
+    if cfg.devices:
+        tj = {}
+        for d in cfg.devices:
+            tcase = warmup.last_value(case, d.name, f"case_{d.name}", "surfaceFieldValue.dat")
+            if tcase:
+                tj[d.name] = c(tcase) + meta["power_W"][d.name] * d.rth_jc
+        if not tj:
+            return None
+        hot = max(tj, key=tj.get)
+        return f"Tj {hot}", tj[hot]
+    tb = tail_mean(series(case, "heatsink", "Tbase_heatsink", "surfaceFieldValue.dat"))[0]
+    return ("base", c(tb)) if tb is not None else None
+
+
+def mesh_table(case: Path, others: list[Path]):
+    """Rows for the Checks section: this case and each --mesh-compare case, coarsest first."""
+    rows, this = [], headline(case)
+    for k in [case] + others:
+        meta = json.loads((k / "case-meta.json").read_text())
+        h = headline(k)
+        same = h and this and h[0] == this[0]
+        rows.append((meta["expected_cells"]["_total"], [
+            k.name + (" (this report)" if k == case else ""), meta["resolution"],
+            f"{meta['expected_cells']['_total']:,}",
+            f"{h[0]} {h[1]:.2f} C" if h else "no result",
+            "-" if k == case else (f"{h[1] - this[1]:+.2f}" if same else "not comparable")]))
+    return [r for _, r in sorted(rows, key=lambda x: x[0])]
+
+
 # ---------------------------------------------------------------- document
 
 def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assumptions, has_video,
-               meas=None):
+               meas=None, ir_clim_used=None, camera_image=None, mesh_rows=None):
+    """The report in the order of references/report-structure.md: 1 Result (page 1: verdict
+    table and the key figure), 2 Inputs and assumptions, 3 Results, 4 Comparison with
+    measurement (only with measured points, a camera image or report.style ir), 5 Time
+    behaviour (only with a warm-up), 6 Checks. Sections are numbered in the order present."""
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Cm, Pt
@@ -1130,8 +1181,10 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
     st = doc.styles["Normal"]
     st.font.name = "Calibri"
     st.font.size = Pt(10.5)
+    sec = doc.sections[0]
+    sec.top_margin = sec.bottom_margin = Cm(2.0)
 
-    def table(rows, header, widths=None):
+    def table(rows, header, widths=None, compact=False):
         t = doc.add_table(rows=1, cols=len(header))
         t.style = "Light Grid Accent 1"
         for i, h in enumerate(header):
@@ -1140,6 +1193,13 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
             cells = t.add_row().cells
             for i, v in enumerate(r):
                 cells[i].text = str(v)
+        if compact:   # many rows (one per device) on page 1: smaller type, no spacing
+            for row in t.rows:
+                for cell in row.cells:
+                    for par in cell.paragraphs:
+                        par.paragraph_format.space_after = Pt(0)
+                        for run in par.runs:
+                            run.font.size = Pt(9)
         if widths:
             for row in t.rows:
                 for i, w in enumerate(widths):
@@ -1148,23 +1208,44 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
         return t
 
     nfig = [0]
+    fig_no = {}
 
     def figure(key, caption, width=16.5):
         """Insert a figure with its caption, numbered in order of the figures actually present."""
         if key in figs and figs[key].exists():
             nfig[0] += 1
+            fig_no[key] = nfig[0]
             doc.add_picture(str(figs[key]), width=Cm(width))
             doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.paragraphs[-1].paragraph_format.keep_with_next = True   # never a caption alone
             cp = doc.add_paragraph(f"Figure {nfig[0]}: {caption}")
             cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
             cp.runs[0].italic = True
+            return True
+        return False
 
-    doc.add_heading(f"Thermal report: {cfg.name}", 0)
+    nsec = [0]
+
+    def section(title, new_page=False):
+        nsec[0] += 1
+        h = doc.add_heading(f"{nsec[0]}. {title}", 1)
+        h.paragraph_format.page_break_before = new_page
+
+    ir = STYLE["style"] == "ir"
+    path_caption = ("temperature along the heat path of the hottest device." if cfg.devices else
+                    "temperature along the heat path from the board to the air.")
+    solids_caption = ("CFD surface temperature of the solid parts as a thermal camera would see them "
+                      "(same scale in both views)." if ir else
+                      "CFD temperature of the solid parts (local scale: coldest to hottest solid).")
+
+    title = doc.add_heading(f"Thermal report: {cfg.name}", 0)
+    for run in title.runs:
+        run.font.size = Pt(20)
     doc.add_paragraph(f"{dt.date.today().isoformat()} · OpenFOAM v2412 conjugate heat transfer · "
                       f"generated by the openfoam-electronics-cooling skill")
 
-    # 1. answer
-    doc.add_heading("1. Result", 1)
+    # 1. Result (page 1): the answer, the verdict of the checks, one key figure
+    section("Result")
     rows = []
     for d in hc["devices"]:
         cf = cfd["devices"].get(d["name"]) if cfd else None
@@ -1172,7 +1253,8 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
         rows.append([d["name"], f"{d['P']:.2f}", f"{d['T_j_C']:.1f}",
                      f"{cf['Tj']:.1f}" if cf else "not run", f"{d['tj_max']:.0f}", f"{d['tj_max'] - tj:.0f}"])
     if rows:
-        table(rows, ["Device", "Loss (W)", "Tj hand calc (C)", "Tj CFD (C)", "Tj max (C)", "Margin (K)"])
+        table(rows, ["Device", "Loss (W)", "Tj hand calc (C)", "Tj CFD (C)", "Tj max (C)", "Margin (K)"],
+              compact=len(rows) > 6)
         worst = min(float(r[-1]) for r in rows)
         msg = (f"At {cfg.ambient_C:g} C ambient the hottest junction stays {worst:.0f} K below its limit. "
                + ("That is above the usual 25 K design margin." if worst >= 25 else
@@ -1193,15 +1275,26 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
         msg = (f"No devices: {P:.2f} W enters through the board, so the result is the board and base "
                f"temperature at {cfg.ambient_C:g} C ambient (R to ambient from the "
                + ("CFD)." if cfd else "hand calc)."))
-    doc.add_paragraph(msg)
     if verdict:
-        doc.add_paragraph(f"CFD checks: {verdict}")
+        msg += f" CFD checks: {verdict}"
     if summ:
-        doc.add_paragraph(f"Warm-up from cold: 90 % of the final temperature rise after "
-                          f"{(summ['t90_s'] or 0) / 60:.0f} min, steady after about {(summ['t99_s'] or 0) / 60:.0f} min.")
+        msg += (f" Warm-up from cold: 90 % of the final temperature rise after "
+                f"{(summ['t90_s'] or 0) / 60:.0f} min, steady after about {(summ['t99_s'] or 0) / 60:.0f} min.")
+    doc.add_paragraph(msg)
+    key = "cfd_solids" if cfd and figs["cfd_solids"].exists() else "path"
+    # Page 1 holds the answer: size the key figure to the height left under the table and the
+    # verdict (estimated in cm: title, date line, heading, table rows, verdict, caption).
+    if figs[key].exists():
+        ih, iw = plt.imread(str(figs[key])).shape[:2]
+        used = (1.4 * (1 + len(cfg.name) // 40) + 1.0 + 1.2 + 0.9 + 0.6
+                + len(rows) * (0.52 if len(rows) > 6 else 0.6 if cfg.devices else 1.0)
+                + 0.5 * (1 + len(msg) // 90) + 1.0 + 2.2)
+        avail = (sec.page_height - sec.top_margin - sec.bottom_margin) / Cm(1) - used
+        figure(key, solids_caption if key == "cfd_solids" else path_caption[:-1] + " (hand calculation).",
+               max(8.0, min(14.0 if key == "cfd_solids" else 12.0, avail * iw / ih)))
 
-    # 2. inputs
-    doc.add_heading("2. Inputs", 1)
+    # 2. Inputs and assumptions: enough to reproduce the result
+    section("Inputs and assumptions", new_page=True)
     s, im, el = cfg.sink, cfg.ims, cfg.electrical
     inp = [["Ambient (worst case)", f"{cfg.ambient_C:g} C"]]
     if cfg.devices:
@@ -1226,16 +1319,11 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
         doc.add_paragraph("Values marked for checking in the input file:")
         for a in assumptions:
             doc.add_paragraph(a, style="List Bullet")
-
-    # 3. arrangement
-    doc.add_heading("3. Arrangement", 1)
     figure("layout", "device placement on the sink, section through the devices, and the "
                      "layers the heat crosses." if cfg.devices else
            "board placement on the sink, section through the board, and the layers the heat crosses.")
     figure("assembly", "3D view of the modelled assembly (grey heat sink, green board, black packages).")
-
-    # 4. setup
-    doc.add_heading("4. Simulation setup", 1)
+    doc.add_heading("Simulation setup", 2)
     if meta:
         ec = meta["expected_cells"]
         mode = meta["config"].get("solver", {}).get("mode", "steady")
@@ -1256,17 +1344,23 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
         table(rows, ["Item", "Setting"], [4, 13])
     else:
         doc.add_paragraph("No CFD case was run; results below are from the hand calculation.")
+    doc.add_heading("Limits", 2)
+    for t in ["Tj is case temperature plus loss x Rth(j-c); the die itself is not modelled." if cfg.devices else
+              "No devices: the heat is put in evenly over the board's spreader.",
+              "Thin layers conduct only through their thickness; copper spreading under the pad is ignored (conservative).",
+              "The surroundings radiate as a black room at ambient; nearby hot walls or an enclosure are not modelled.",
+              ("Air is k-omega SST (a fan modelled as a uniform turbulent stream, no hub or swirl)"
+               if cfg.airflow.get("turbulence") else "Air is laminar")
+              + " with constant properties at the film temperature; solids have constant conductivity.",
+              "The warm-up assumes full load from a cold start; short pulses (inrush, faults) need the datasheet Zth curves."]:
+        doc.add_paragraph(t, style="List Bullet")
 
-    # 5. results
-    doc.add_heading("5. Thermal results", 1)
-    figure("path", "temperature along the heat path of the hottest device." if cfg.devices else
-           "temperature along the heat path from the board to the air.", 14)
+    # 3. Results: the evidence behind the answer
+    section("Results")
+    if key != "path":
+        figure("path", path_caption, 14)
     if cfd:
-        figure("cfd_solids", "CFD temperature of all solid parts (same colour scale both views)."
-               if STYLE["style"] == "ir" else "CFD temperature of all solid parts (local colour scale "
-               "from the coldest to the hottest solid, same in both views; the air sections use the full "
-               "range from ambient).")
-        if STYLE["style"] == "ir":
+        if ir:
             figure("plume", "air temperature and flow in a vertical section through the "
                    + ("devices." if cfg.devices else "board centre."), 13)
         else:
@@ -1285,54 +1379,74 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
                  if cfd.get("Q_rad") is not None else "not modelled"],
                 ["Mean sink temperature", f"{cfd['T_sink_C']:.1f} C (hand calc {hc['T_sink_C']:.1f} C)"]]
         table(rows, ["Quantity", "CFD"], [6, 11])
-        if meas:
-            doc.add_heading("Comparison with measurement", 2)
-            figure("measured", "measured temperatures (error bars: their uncertainty) and the CFD at the "
-                   "same points" + (", absolute and relative to the reference point." if any(
-                       "d_cfd" in r for r in meas) else "."), 15)
-            has_rel = any("d_cfd" in r for r in meas)
-            ref = next((r for r in meas if r["reference"]), None)
-            mrows = []
-            sg = lambda v: f"{v + 0.0:+.2f}".replace("-0.00", "+0.00")  # noqa: E731  (no "-0.00")
-            for r in meas:
-                c_ = r["cfd"]
-                row = [r["name"], r["note"] or r["loc"],
-                       f"{r['measured']:.2f} ± {r['u']:.2f}", f"{c_:.2f}" if c_ is not None else "outside the model",
-                       sg(c_ - r["measured"]) if c_ is not None else "-"]
-                if has_rel:
-                    row += ([sg(r["d_meas"]), sg(r["d_cfd"]), sg(r["d_cfd"] - r["d_meas"])]
-                            if "d_cfd" in r and not r["reference"] else ["ref", "ref", "-"])
-                mrows.append(row)
-            head = ["Point", "Where", "Measured (C)", "CFD (C)", "Δ (K)"]
-            if has_rel:
-                head += [f"Meas. − {ref['name']} (K)", f"CFD − {ref['name']} (K)", "Δ (K)"]
-            table(mrows, head, [1.4, 4.0, 2.4, 1.6, 1.3, 2.1, 2.1, 1.3][:len(head)])
-            doc.paragraphs[-1].text = ("Where the CFD was read: " + "; ".join(
-                f"{r['name']} {r['loc']}" + (f" in {r['where']}" if r["where"] and r["where"] != r["loc"].split()[0]
-                                             else "") for r in meas) + ".")
-            got = [r for r in meas if r["cfd"] is not None]
-            if got:
-                da = [r["cfd"] - r["measured"] for r in got]
-                inside = sum(abs(d) <= r["u"] for d, r in zip(da, got))
-                txt = (f"Absolute: CFD minus measured {sg(min(da))} to {sg(max(da))} K; {inside} of {len(got)} "
-                       "points within the measurement uncertainty.")
-                rr = [r for r in got if "d_cfd" in r and not r["reference"]]
-                if rr:
-                    dr = [r["d_cfd"] - r["d_meas"] for r in rr]
-                    ins = sum(abs(d) <= r["u_rel"] for d, r in zip(dr, rr))
-                    txt += (f" Relative to {ref['name']} (the shape of the temperature field, independent of the "
-                            f"overall thermal resistance): {sg(min(dr))} to {sg(max(dr))} K; {ins} of {len(rr)} "
-                            "within the combined uncertainty of the two readings.")
-                doc.add_paragraph(txt)
     else:
         sh = hc["sink"]
         table([["Sink mean temperature", f"{hc['T_sink_C']:.1f} C"],
                ["Convection / radiation", f"{sh['q_conv']:.2f} W / {sh['q_rad']:.2f} W"],
                ["Sink to air", f"{hc['R_sa']:.3f} K/W"]], ["Quantity", "Hand calc"], [6, 11])
 
-    # 6. warm-up
+    # 4. Comparison with measurement: only when there is something measured to compare with
+    camera = bool(camera_image) or (ir and cfd and "cfd_solids" in fig_no)
+    if meas or camera:
+        section("Comparison with measurement")
+    if meas:
+        figure("measured", "measured temperatures (error bars: their uncertainty) and the CFD at the "
+               "same points" + (", absolute and relative to the reference point." if any(
+                   "d_cfd" in r for r in meas) else "."), 15)
+        has_rel = any("d_cfd" in r for r in meas)
+        ref = next((r for r in meas if r["reference"]), None)
+        mrows = []
+        sg = lambda v: f"{v + 0.0:+.2f}".replace("-0.00", "+0.00")  # noqa: E731  (no "-0.00")
+        for r in meas:
+            c_ = r["cfd"]
+            row = [r["name"], r["note"] or r["loc"],
+                   f"{r['measured']:.2f} ± {r['u']:.2f}", f"{c_:.2f}" if c_ is not None else "outside the model",
+                   sg(c_ - r["measured"]) if c_ is not None else "-"]
+            if has_rel:
+                row += ([sg(r["d_meas"]), sg(r["d_cfd"]), sg(r["d_cfd"] - r["d_meas"])]
+                        if "d_cfd" in r and not r["reference"] else ["ref", "ref", "-"])
+            mrows.append(row)
+        head = ["Point", "Where", "Measured (C)", "CFD (C)", "Δ (K)"]
+        if has_rel:
+            head += [f"Meas. − {ref['name']} (K)", f"CFD − {ref['name']} (K)", "Δ (K)"]
+        table(mrows, head, [1.4, 4.0, 2.4, 1.6, 1.3, 2.1, 2.1, 1.3][:len(head)])
+        doc.paragraphs[-1].text = ("Where the CFD was read: " + "; ".join(
+            f"{r['name']} {r['loc']}" + (f" in {r['where']}" if r["where"] and r["where"] != r["loc"].split()[0]
+                                         else "") for r in meas) + ".")
+        got = [r for r in meas if r["cfd"] is not None]
+        if got:
+            da = [r["cfd"] - r["measured"] for r in got]
+            inside = sum(abs(d) <= r["u"] for d, r in zip(da, got))
+            txt = (f"Absolute: CFD minus measured {sg(min(da))} to {sg(max(da))} K; {inside} of {len(got)} "
+                   "points within the measurement uncertainty.")
+            rr = [r for r in got if "d_cfd" in r and not r["reference"]]
+            if rr:
+                dr = [r["d_cfd"] - r["d_meas"] for r in rr]
+                ins = sum(abs(d) <= r["u_rel"] for d, r in zip(dr, rr))
+                txt += (f" Relative to {ref['name']} (the shape of the temperature field, independent of the "
+                        f"overall thermal resistance): {sg(min(dr))} to {sg(max(dr))} K; {ins} of {len(rr)} "
+                        "within the combined uncertainty of the two readings.")
+            doc.add_paragraph(txt)
+    if camera:
+        if meas:
+            doc.add_heading("Thermal camera", 2)
+        if ir and "cfd_solids" in fig_no:
+            lo, hi = ir_clim_used if ir_clim_used else (None, None)
+            doc.add_paragraph(
+                f"Figure {fig_no['cfd_solids']} shows the CFD surface temperature in a thermal camera's "
+                "palette, face-on to the component side and the fin side"
+                + (f", on a scale from {lo:.1f} to {hi:.1f} C" if lo is not None else "")
+                + (" (fixed with report.ir_range)" if STYLE.get("ir_range") else
+                   " (ambient plus ir_floor_K to the hottest point, as a camera auto-ranges)")
+                + ". Compare it with the camera image at the same scale. The outlines are drawn on top as a "
+                "camera's visible-light overlay does; they are a display effect, not a result.")
+        if camera_image:
+            figs["camera"] = Path(camera_image)
+            figure("camera", "thermal camera image as supplied (report.camera_image).", 13)
+
+    # 5. Time behaviour: only with a warm-up
     if summ:
-        doc.add_heading("6. Warm-up", 1)
+        section("Time behaviour")
         figure("warmup", "temperatures from switch-on at full load.", 15)
         doc.add_paragraph(
             "Lumped model with the real heat capacities (heat sink "
@@ -1344,20 +1458,24 @@ def build_docx(path: Path, cfg, hc, meta, gates, verdict, figs, cfd, summ, assum
             + (" The heat-up video (heatup.mp4, delivered with this report) shows the same warm-up on the 3D "
                "temperature field." if has_video else ""))
 
-    # 7. checks
+    # 6. Checks: always
+    section("Checks")
     if gates:
-        doc.add_heading("7. Checks on the CFD result", 1)
         table(gates, ["Check", "Result", "Detail"], [5.5, 1.6, 9.9])
-
-    # 8. limits
-    doc.add_heading("8. Limits", 1)
-    for t in ["Tj is case temperature plus loss x Rth(j-c); the die itself is not modelled." if cfg.devices else
-              "No devices: the heat is put in evenly over the board's spreader.",
-              "Thin layers conduct only through their thickness; copper spreading under the pad is ignored (conservative).",
-              "The surroundings radiate as a black room at ambient; nearby hot walls or an enclosure are not modelled.",
-              "Air is laminar with constant properties at the film temperature; solids have constant conductivity.",
-              "The warm-up assumes full load from a cold start; short pulses (inrush, faults) need the datasheet Zth curves."]:
-        doc.add_paragraph(t, style="List Bullet")
+    else:
+        doc.add_paragraph("No CFD run: the result is the hand calculation alone, with no energy balance "
+                          "or mesh check behind it.")
+    if mesh_rows:
+        doc.add_heading("Mesh comparison", 2)
+        table(mesh_rows, ["Case", "Mesh", "Cells", "Result", "Change vs this report (K)"],
+              [5.0, 2.0, 2.4, 4.0, 3.0])
+        doc.paragraphs[-1].text = ("Result: the hottest junction (devices) or the base temperature (no "
+                                   "devices), read the same way in each case. A coarse result is fine for "
+                                   "comparing variants; an absolute number needs the change between meshes "
+                                   "to be small against the margin.")
+    elif cfd:
+        doc.add_paragraph("Mesh comparison: not run. Before a number goes into a decision, rerun at the "
+                          "next finer resolution and add it with --mesh-compare.")
     doc.save(str(path))
 
 
@@ -1388,6 +1506,9 @@ def main() -> int:
                     "views of both sides, to compare with a camera image (ir); also report.style in the YAML")
     ap.add_argument("--measurements", help="take the measurements: list from this YAML instead of the "
                     "case's (e.g. a validation asset that gained measured points after the run)")
+    ap.add_argument("--mesh-compare", action="append", default=[], metavar="CASE",
+                    help="another run of the same design on a different mesh; its result goes into the "
+                    "mesh comparison under Checks (repeatable)")
     a = ap.parse_args()
     src = Path(a.source)
     case = src if src.is_dir() else None
@@ -1431,9 +1552,10 @@ def main() -> int:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
-    fig_warmup(cfg, rows, summ, figs["warmup"])
-
-    cfd, gates, verdict, regions, meas = None, [], "", {}, None
+    show_warmup = rep.get("warmup", True) is not False   # report.warmup: false = steady answer only
+    if show_warmup:
+        fig_warmup(cfg, rows, summ, figs["warmup"])
+    cfd, gates, verdict, regions, meas, ir_clim_used = None, [], "", {}, None, None
     if has_cfd:
         gates, verdict = gates_from_report(case)
         regions = load_cfd(case)
@@ -1459,7 +1581,7 @@ def main() -> int:
             cfd["T_base_C"] = c(tb) if tb is not None else None
         all_T = [float(m["T"].max()) - 273.15 for n, m in regions.items() if n != "air"]
         clim = (cfg.ambient_C, max(all_T))
-        fig_cfd_solids(cfg, regions, figs["cfd_solids"], clim)
+        ir_clim_used = fig_cfd_solids(cfg, regions, figs["cfd_solids"], clim)
         if "air" in regions and STYLE["style"] == "ir":
             fig_cfd_plume_ir(cfg, regions, figs["plume"])
         elif "air" in regions:
@@ -1475,13 +1597,21 @@ def main() -> int:
                          else None, figs["path"])
 
     has_video = False
-    if not a.no_video and regions:
+    if not a.no_video and regions and show_warmup:
         video_heatup(cfg, regions, rows, summ, out / "heatup.mp4")
         has_video = True
 
     docx = out / "thermal-report.docx"
-    build_docx(docx, cfg, hc, meta, gates, verdict, figs, cfd, summ,
-               check_assumptions(cfg_path), has_video, meas)
+    camera_image = None
+    if rep.get("camera_image"):   # a thermal camera image for section 4: relative to the YAML, or the cwd
+        ci = Path(rep["camera_image"]).expanduser()
+        ci = next((p for p in (ci, cfg_path.parent / ci) if p.is_file()), None)
+        if ci is None:
+            print(f"report.camera_image {rep['camera_image']} not found; left out", file=sys.stderr)
+        camera_image = ci
+    mesh_rows = mesh_table(case, [Path(k) for k in a.mesh_compare]) if has_cfd and a.mesh_compare else None
+    build_docx(docx, cfg, hc, meta, gates, verdict, figs, cfd, summ if show_warmup else None,
+               check_assumptions(cfg_path), has_video, meas, ir_clim_used, camera_image, mesh_rows)
     pdf = to_pdf(docx)
     if case:   # the configs that reproduce this run, next to its report
         for f in ("case.yaml", "case-meta.json", "report.md"):
