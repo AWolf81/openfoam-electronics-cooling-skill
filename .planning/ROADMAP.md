@@ -32,7 +32,7 @@ once the user has tried the skill locally.
 ### Phase 1: Baseline, validation fixes and report
 **Goal**: A regression check that proves later phases leave v0.1.0 results unchanged, the three fixes from the plate-fin validation, and reports whose figures and structure match good validation practice (Kirinčić et al. 2025 figure types, Turbo colour map, answer first)
 **Depends on**: Nothing (first phase)
-**Requirements**: BASE-01, FIX-01, FIX-02, FIX-03, FIX-04, FIX-05, REP-01, REP-02, REP-03
+**Requirements**: BASE-01, FIX-01, FIX-02, FIX-03, FIX-04, FIX-05, FIX-06, REP-01, REP-02, REP-03
 **Success Criteria** (what must be TRUE):
   1. One command compares hand-calc output and generated case files of every eval and asset against v0.1.0 and lists differences
   2. The plate-fin validation runs with the heat put into the base directly, no "heater" device, and still gives 2.28 K/W ± 3 %
@@ -41,7 +41,7 @@ once the user has tried the skill locally.
   5. Reports show air sections, velocity vectors, a local-scale sink view and measured vs simulated, in the documented six-section structure
   6. The plate-fin validation uses a back wall only behind the base and shows per-channel plumes at fin mid-height
 **Research**: Done during planning (paper figures, report practice, colour maps)
-**Plans**: 9 plans in 7 waves
+**Plans**: 10 plans in 8 waves
 
 Plans:
 - [ ] 01-01: Regression script (`.github/regression.sh`) and clean first run — wave 1
@@ -52,7 +52,8 @@ Plans:
 - [ ] 01-08: Back wall only behind the sink (`back: {wall: footprint}`); plate-fin rerun coarse + normal (FIX-04) — wave 5
 - [ ] 01-09: Radiation-neutral adiabatic walls; domain energy balance incl. radiation (FIX-05) — wave 6
 - [ ] 01-06: Air sections, velocity vectors, local-scale sink, measured vs simulated (REP-02) — wave 6
-- [ ] 01-07: Report structure and figure rules (REP-03) — wave 7
+- [ ] 01-10: Even radiation ray default, guard, plate-fin re-validated (FIX-06) — wave 7
+- [ ] 01-07: Report structure and figure rules (REP-03) — wave 8
 
 ### Phase 2: Altitude
 **Goal**: Correct results away from sea level
@@ -122,7 +123,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 1. Baseline, validation fixes and report | v0.2.0 | 5/9 | In progress | - |
+| 1. Baseline, validation fixes and report | v0.2.0 | 8/10 | In progress | - |
 | 2. Altitude | v0.2.0 | 0/2 | Not started | - |
 | 3. Loss consistency | v0.2.0 | 0/2 | Not started | - |
 | 4. Limits and worst-case corners | v0.2.0 | 0/3 | Not started | - |

@@ -18,6 +18,7 @@ calculation and energy balances, and the report says what was assumed.
 - [ ] **FIX-02**: SKILL.md and the example YAML say that `emissivity` is set per device and that the 0.9 default suits mould compound, not metal or foil
 - [ ] **FIX-04**: `heatsink.back` can put the adiabatic wall only behind the sink (`{wall: footprint}` or a rectangle), open air elsewhere; the plate-fin validation uses it and shows per-channel plumes like Kirinčić Fig. 10
 - [ ] **FIX-05**: Adiabatic walls on the domain boundary carry zero net radiation, and the energy check includes radiation through the domain boundaries (found in 01-08: a full back wall radiated ~3 W of 9.22 W)
+- [ ] **FIX-06**: The default fvDOM ray set has an even polar count (horizontal faces see the full hemisphere); odd nTheta is rounded up with a warning; plate-fin re-validated (found in 01-09: R +5.8 % → about +1 %)
 - [ ] **FIX-03**: SKILL.md advises more iterations (about 3000) for low-power free convection when "heat flow settled" just fails
 
 ### Report and figures
@@ -91,7 +92,7 @@ calculation and energy balances, and the report says what was assumed.
 |-------------|-------|--------|
 | BASE-01 | Phase 1 | Pending |
 | BASE-02 | Phase 5 | Pending |
-| FIX-01, FIX-02, FIX-03, FIX-04, FIX-05 | Phase 1 | Pending |
+| FIX-01, FIX-02, FIX-03, FIX-04, FIX-05, FIX-06 | Phase 1 | Pending |
 | REP-01, REP-02, REP-03 | Phase 1 | Pending |
 | ENV-01 – ENV-05 | Phase 2 | Pending |
 | LOSS-01 – LOSS-04 | Phase 3 | Pending |
@@ -99,8 +100,8 @@ calculation and energy balances, and the report says what was assumed.
 | REL-01 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 25 total
-- Mapped to phases: 25
+- v1 requirements: 26 total
+- Mapped to phases: 26
 - Unmapped: 0
 
 ---
