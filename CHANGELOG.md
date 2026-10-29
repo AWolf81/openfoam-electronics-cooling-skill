@@ -24,6 +24,19 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
   `back_wall`, split off `back` with topoSet + createPatch). For a heater, vessel or housing no
   larger than the sink; `wall` (whole back boundary) stays for a mounting plate or enclosure wall.
   `free` and `wall` cases are unchanged byte for byte.
+- Report figures like those of CFD papers (Kirinčić et al. 2025, Figs. 10-13): air temperature
+  sections at mid fin height and vertically through a fin channel, with flow arrows
+  (`cfd-air-sections.png`); velocity vectors coloured by speed at mid fin height
+  (`cfd-velocity.png`); the heat sink alone on its own colour scale (`cfd-sink-local.png`).
+- Measured vs simulated: optional `measurements:` in the YAML (points or a part's max/mean, with
+  uncertainty and one optional reference point); the report plots and tabulates them, absolute
+  and relative to the reference (`measured-vs-cfd.png`). `make_report.py --measurements <yaml>`
+  takes them from another file for a case run before they were added.
+- Report structure (`references/report-structure.md`): 1 Result (page 1: verdict table and one
+  key figure), 2 Inputs and assumptions, 3 Results, 4 Comparison with measurement, 5 Time
+  behaviour, 6 Checks, each figure only when its condition holds. New: `report.camera_image`
+  (thermal camera image in section 4), `report.warmup: false` (steady answer only) and
+  `make_report.py --mesh-compare <case>` (mesh comparison under Checks).
 - GSD planning in `.planning/` (project, requirements, roadmap for 0.2.0, the v0.2 PRD). It is
   not part of the skill package and is left out of the package hash.
 
@@ -35,6 +48,14 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
   2.42 K/W with the old odd ray default, see Fixed). The
   earlier whole-wall result (−2 … −3 %) was flattered by 12–14 % of the heat leaking through the
   vessel wall's back face into an air gap that is insulated in reality.
+- CFD figures and the video use Turbo by default (`report.style: cfd`; `3d` is accepted as the
+  old name): smooth point-interpolated fields in 256 levels, legend on the left, still figures
+  rendered at 2.5x and saved at 200 dpi. The thermal-camera palette is now `report.style: ir`,
+  for comparisons with a camera image (its figures unchanged). In the cfd style the air
+  sections replace `cfd-plume.png`.
+- Report sections reordered to the structure above: setup and limits sit next to the inputs,
+  the comparison with measurement has its own section, and the checks come last.
+- `hand_calc.py` without devices no longer prints the base temperature and R_sink-air twice.
 - The package hash also leaves out `.planning/` (README, SKILL.md, `.github/package-hash.sh`).
 - SKILL.md intake: emissivity is set per part (`heatsink`, `board`, `devices[]`, `solids[]`);
   metal or foil-covered heat sources need 0.03-0.1 instead of the 0.9 default.

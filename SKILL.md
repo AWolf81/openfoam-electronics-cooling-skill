@@ -59,7 +59,10 @@ of how much it moves the junction temperature:
    changes the answer, and the report labels come from these names. The thinnest, least
    conductive layer (IMS dielectric, or a dry contact) is usually the largest resistance.
 6. **Packages:** footprint, Rth(j-c), Tj(max), position on the board. Low on the sink is better:
-   the air warms as it rises.
+   the air warms as it rises. `devices` may be empty (or left out) when `board.power_W` (or an
+   island's power) carries the heat: a bare heat sink heated through its base, for a datasheet
+   R_sa check or a benchmark. The result is then the base temperature (mean over the sink's
+   contact face) and the board temperature, not Tj.
 7. **Airflow** (`airflow:`): free convection (default) or a fan, `{mode: forced,
    velocity_m_s, direction: fins | components | sink, channel_ratio, turbulence}`. The velocity is the
    approach speed of the fan air at the sink, not at the fan: a 120 mm PC fan at low speed
@@ -167,6 +170,11 @@ mean no longer moves.
 - **Energy balance:** heat leaving the solids (into the air, plus out through the far ends of
   `solids` that leave the domain, such as cables) equals the loss put in, within 2 %.
   Steady state means nothing else can happen to it.
+- **Domain energy balance (walls adiabatic):** only in cases with a wall on the domain boundary
+  (`heatsink.back` other than `free`). The heat put in must leave through the open boundaries
+  (convection plus radiation) within 2 %; the wall is not a term, and its net radiation, shown
+  in the detail, must be about 0 W. It catches a wall that injects or swallows heat, which the
+  solids balance cannot see (a black wall once added 2.8 W to a 9.2 W case).
 - **Settled:** the mean heat flow and the mean case temperatures moved less than 0.5 % / 0.5 K
   between the two halves of the last fifth of the run. If not, run longer (`startFrom
   latestTime` resumes) before anything else. A free-convection case with little heat (around
@@ -195,7 +203,8 @@ stable mean, report the mean and the band.
 
 Rerun at `--resolution normal` (and `fine` if normal moved Tj by more than 2 K). Report the
 change in Tj between resolutions. A coarse result is fine for comparing variants against each
-other; an absolute temperature for a design review needs the check.
+other; an absolute temperature for a design review needs the check. `make_report.py <finer case>
+--mesh-compare <coarser case>` puts the comparison in the report's Checks section.
 
 ### 7. Report to the user
 
@@ -212,16 +221,43 @@ It writes `cases/<name>-report/` next to the case: `thermal-report.docx`, the sa
 `report.md`, and `figures/`. The case folder itself carries a `CACHEDIR.TAG`, so backups that
 honour it (restic/borg/tar `--exclude-caches`, as the user's daily backup does) skip the CFD data
 and keep the report and the configs that reproduce it. Never put anything worth keeping inside
-the case folder. Figures: device placement and section, stack-up, 3D assembly, CFD temperature of all
-parts, a vertical air section through the devices, temperature along the heat path, and the
-warm-up curve. Look at the figures before sending the report; a wrong camera or colour scale
-is easy to miss in a PDF.
+the case folder.
+
+The report follows `references/report-structure.md`: 1 Result (page 1: the verdict table and
+one key figure), 2 Inputs and assumptions, 3 Results, 4 Comparison with measurement, 5 Time
+behaviour, 6 Checks. Each figure appears only when its condition holds, and sections are
+numbered in the order present. Figures (`figures/`): `layout.png` (placement, section,
+stack-up), `assembly-3d.png`, `cfd-solids.png` (page 1), `temperature-path.png`,
+`cfd-sink-local.png` (the sink on its own scale), `cfd-air-sections.png` (mid fin height and a
+vertical section through a channel, with flow arrows), `cfd-velocity.png` (vectors at mid fin
+height), `measured-vs-cfd.png` (only with measurements) and `warmup.png`. Style `ir` writes
+`cfd-plume.png` (one vertical air section) instead of the sink, section and velocity figures.
+Look at the figures before sending the report; a wrong camera or colour scale is easy to miss
+in a PDF.
+
+Whenever the user has measured values (thermocouples, a datasheet point) or a thermal image,
+put them in the YAML so section 4 appears:
+
+```yaml
+measurements:
+  - {name: TCb, point_mm: [0.5, 61.5, 90], value_C: 50.0, uncertainty_K: 0.2, reference: true}
+  - {name: TC1, point_mm: [7, 13.5, 50], value_C: 49.8, note: "fin 1, mid-length"}
+  - {name: sink max, part: heatsink, stat: max, value_C: 51.0}   # stat: max | mean
+report: {camera_image: ir-photo.png}   # optional; relative to the working directory or the YAML
+```
+
+`point_mm` is (x out of the base, y across the fins, z up) in the model frame, with the sink's
+back face at x = 0; `uncertainty_K` defaults to 0.2. At most one entry is the `reference`: the
+report then also compares T - T_reference, which tests the shape of the field apart from the
+overall R. For a case run before the points were added, pass them at report time:
+`make_report.py <case> --measurements <yaml>` (only that file's `measurements:` list is read).
+`report.warmup: false` leaves out section 5 and the video for a pure steady answer.
 
 The CFD figures and the video default to the CFD style (`report.style: cfd`, or `--style cfd`;
 `3d` is still accepted as its old name): matplotlib's Turbo colour map (blue cold to red hot, the
 order of the Fluent rainbow in papers, but with smooth lightness, so no false edges), point-
 interpolated fields in 256 levels (`cfd_levels: 64` gives visible bands), legend "Temperature
-[°C]" on the left. The vertical air section and the video run from ambient to the hottest value
+[°C]" on the left. The air sections and the video run from ambient to the hottest value
 (global scale); the 3D view of the solids from their coldest to their hottest point (labelled
 "local scale"). Still figures are rendered at 2.5x and saved at 200 dpi. Use `report.style: ir`
 only to compare with a thermal-camera image, where the palette and the scale must match the

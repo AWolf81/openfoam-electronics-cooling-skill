@@ -157,6 +157,13 @@ no foam): 2.21 / 2.24 K/W (−2.9 / −1.7 %), flattered because 12–14 % of th
 vessel wall's back face into that gap, which is insulated in reality; through the sink alone R
 was 2.55–2.58 K/W there and is 2.48–2.49 K/W now. The YAML header has the commands.
 
+The YAML also carries the five thermocouples (`measurements:`), so the report of a plate-fin run
+has a "Comparison with measurement" section: measured vs simulated at each thermocouple, absolute
+and relative to TCb, as a plot and a table. Render it with
+`make_report.py <case> --measurements assets/validation-plate-fin.yaml` (for a case built before
+the thermocouples were added), and add `--mesh-compare <coarse case>` to the normal run's report
+for the mesh comparison under Checks.
+
 ## License
 
 MIT, see [LICENSE](LICENSE). The Infineon IR image in `docs/` is © Infineon Technologies, reproduced from
