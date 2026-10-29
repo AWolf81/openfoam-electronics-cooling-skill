@@ -78,11 +78,11 @@ def main() -> int:
         T_board = r["T_base_under_ims_C"] + r["P_tot"] * r["R_tim"]
         print("No devices: the heat enters through the board (board.power_W); the result is the")
         print("board/base temperature.")
-        print(f"Base under board      {r['T_base_under_ims_C']:8.1f} C   R base-air "
-              f"{(r['T_base_under_ims_C'] - Ta) / r['P_tot']:.3f} K/W")
+        # base temperature and R_sink-air are printed above; here only what is new
+        print(f"R base-air            {(r['T_base_under_ims_C'] - Ta) / r['P_tot']:8.3f} K/W  "
+              f"(base under board {r['T_base_under_ims_C']:.1f} C, above)")
         print(f"Board (heated face)   {T_board:8.1f} C   R board-air "
               f"{(T_board - Ta) / r['P_tot']:.3f} K/W")
-        print(f"R_sink-air            {r['R_sa']:8.3f} K/W")
         print()
     worst = None
     if r["devices"]:
