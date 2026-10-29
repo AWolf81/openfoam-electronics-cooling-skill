@@ -139,17 +139,23 @@ uncertainty u = 3.28 % on the heat flow and so on R; the band is ±2u = ±6.6 %,
 | Measurement (u = 3.28 %) | 50.0 °C | 2.28 K/W | |
 | Paper's CFD (ANSYS Fluent, 4–9 M cells) | | 2.22 K/W | −3 % |
 | This skill: hand calc | 50.6 °C | 2.34 K/W | +3 % |
-| This skill: CFD, coarse (140 k cells) | 51.3 °C | 2.41 K/W | +5.8 % |
-| This skill: CFD, normal (353 k cells) | 51.4 °C | 2.42 K/W | +6.2 % |
+| This skill: CFD, coarse (140 k cells) | 50.3 °C | 2.31 K/W | +1.2 % |
+| This skill: CFD, normal (353 k cells) | 50.4 °C | 2.31 K/W | +1.5 % |
 
-Both CFD runs: heated through the board, no devices; all checks pass (energy balance 0.0 %,
-settled, sink rise +2/+3 % vs hand calc); base = mean over the sink's contact face. 95 % of the
-heat leaves through the sink, 4 % through the foam, 1 % through the vessel wall's exposed edges.
-The CFD sits at the upper edge of the band, i.e. it slightly under-predicts the sink's heat
-transfer. Earlier model (wall over the whole back boundary, 5 mm air gap behind the vessel wall,
+Both CFD runs: heated through the board, no devices, default radiation rays [3, 4]; all checks
+pass (energy balance 0.0 %, domain energy balance +0.0/+0.1 %, settled, sink rise −2 % vs hand
+calc); base = mean over the sink's contact face. 93 % of the heat leaves through the sink, 5 %
+through the foam, 2 % through the vessel wall's exposed edges; radiation is 0.55 W (6 %, hand
+calc 0.15 W). At the thermocouples (normal mesh) the CFD is 0.45–0.55 K above the measurement
+(the model puts in the measured power, so the field sits higher by the R excess); relative to the
+base thermocouple TCb all four fin readings agree within 0.10 K (±0.28 K combined uncertainty).
+With the earlier default rays [3, 3] (odd polar count: faces facing up or down saw 3/4 of the
+hemisphere, and the low-emissivity horizontal faces absorbed radiation that does not exist) the
+same model gave 2.41 / 2.42 K/W (+5.8 / +6.2 %); a [3, 4] test on the coarse mesh gave 2.308 K/W
+before the default was changed. Earlier model (wall over the whole back boundary, 5 mm air gap behind the vessel wall,
 no foam): 2.21 / 2.24 K/W (−2.9 / −1.7 %), flattered because 12–14 % of the heat left through the
 vessel wall's back face into that gap, which is insulated in reality; through the sink alone R
-was 2.55–2.58 K/W there and is 2.54–2.55 K/W now. The YAML header has the commands.
+was 2.55–2.58 K/W there and is 2.48–2.49 K/W now. The YAML header has the commands.
 
 ## License
 

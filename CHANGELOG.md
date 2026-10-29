@@ -13,7 +13,7 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
 
 - Validation case `assets/validation-plate-fin.yaml`: a plate-fin heat sink in free convection
   against the measurement in Kirinčić et al., Thermo 2025 (CC BY 4.0). Hand calc +3 %, CFD
-  +5.8 % (coarse) / +6.2 % (normal) on the thermal resistance, inside the measurement's ±2u
+  +1.2 % (coarse) / +1.5 % (normal) on the thermal resistance, inside the measurement's ±2u
   band; results table in the README.
 - Cases without devices: `board.power_W` (or island power) can be the only heat source, for bare
   heat-sink benchmarks and datasheet R_sa checks. The hand calc and `report.py` then give the
@@ -31,7 +31,8 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
 
 - Plate-fin validation (`assets/validation-plate-fin.yaml`): wall only behind the sink, 25 mm
   vessel foam, open back boundary 30 mm behind the base (as in the paper's domain); acceptance
-  is the measurement's ±2u (±6.6 %). CFD coarse 2.41 K/W (+5.8 %), normal 2.42 K/W (+6.2 %). The
+  is the measurement's ±2u (±6.6 %). CFD coarse 2.31 K/W (+1.2 %), normal 2.31 K/W (+1.5 %; 2.41 /
+  2.42 K/W with the old odd ray default, see Fixed). The
   earlier whole-wall result (−2 … −3 %) was flattered by 12–14 % of the heat leaking through the
   vessel wall's back face into an air gap that is insulated in reality.
 - The package hash also leaves out `.planning/` (README, SKILL.md, `.github/package-hash.sh`).
@@ -46,7 +47,7 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
   polar band straddled the horizontal plane, so faces facing straight up or down saw 3/4 of the
   hemisphere and low-emissivity horizontal faces absorbed radiation that does not exist (about
   80 W/m2; every balance still closed). Default now [3, 4] (48 rays); an odd nTheta in a YAML is
-  rounded up with a warning. Plate-fin R +5.8 % -> about +1 %. Every case with radiation gets a
+  rounded up with a warning. Plate-fin R +5.8 / +6.2 % -> +1.2 / +1.5 % (coarse / normal). Every case with radiation gets a
   new `radiationProperties`; the comment in it now states the real ray count (4 nPhi nTheta;
   it said 72 for the 36 rays of [3, 3]). `[2, 2]` (fast radiation) was already even.
 - An adiabatic wall on the domain boundary (`heatsink.back: wall`, and the `back_wall` patch of

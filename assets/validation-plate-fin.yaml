@@ -20,13 +20,16 @@
 #     30 mm of air behind the base, the region behind the base excluded; Sec. 5.3: upper and lower
 #     rear boundaries are pressure outlets, only the faces behind the base are adiabatic walls).
 #
-# Results (this skill): hand calc base 50.6 °C (R sink-air 2.34 K/W). CFD coarse: base 51.3 °C,
-# R 2.41 K/W (+5.8 %); normal: base 51.4 °C, R 2.42 K/W (+6.2 %); all checks pass on both. Compare
-# the base temperature in the report ("Board and base temperature") with 50.0 °C.
+# Results (this skill): hand calc base 50.6 °C (R sink-air 2.34 K/W). CFD (default radiation rays
+# [3, 4]) coarse: base 50.3 °C, R 2.308 K/W (+1.2 %); normal: base 50.4 °C, R 2.314 K/W (+1.5 %);
+# all checks pass on both, including the domain energy balance. Compare the base temperature in
+# the report ("Board and base temperature") with 50.0 °C. With the old odd ray count [3, 3] the
+# horizontal low-emissivity faces absorbed radiation that does not exist and R came out 2.413 /
+# 2.422 K/W (+5.8 / +6.2 %); a [3, 4] test on the coarse mesh in 01-09 had already given 2.308.
 # Earlier model (back: wall over the whole 450 mm back boundary, 5 mm air gap behind the vessel
 # wall, no foam): R 2.21 / 2.24 K/W (coarse / normal, -2.9 / -1.7 %). That agreement was flattered:
 # 12-14 % of the heat left through the vessel wall's back face into the air gap, which is insulated
-# in reality. Through the sink alone R is 2.54-2.55 K/W (this model) vs 2.55-2.58 K/W (whole wall).
+# in reality. Through the sink alone R is 2.48-2.49 K/W (this model) vs 2.55-2.58 K/W (whole wall).
 #
 #   python3 <skill>/scripts/hand_calc.py validation-plate-fin.yaml
 #   python3 <skill>/scripts/make_case.py validation-plate-fin.yaml cases/plate-fin-coarse --resolution coarse
