@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-28)
 ## Current Position
 
 Phase: 1 of 5 (Baseline, validation fixes and report)
-Plan: 8 of 10 in current phase
-Status: In progress (wave 7: 01-10)
-Last activity: 2026-10-29 — Wave 6 done: 01-06 new figures + measured vs CFD (relative to TCb within 0.08 K); 01-09 radiation-neutral walls + domain energy gate
+Plan: 9 of 10 in current phase
+Status: In progress (wave 8: 01-07)
+Last activity: 2026-10-29 — Wave 7 done: 01-10 even ray default [3, 4]; plate-fin R coarse 2.308, normal 2.314 K/W (+1.5 %), TC deviations +0.45…+0.55 K absolute, +0.01…+0.10 K relative to TCb
 
-Progress: [████████░░] 80% (8 of 10 plans in phase 1)
+Progress: [█████████░] 90% (9 of 10 plans in phase 1)
 
 ## Performance Metrics
 
@@ -58,7 +58,7 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- DECIDED 2026-10-29 (user: yes, plan 01-10): default `solver.radiation_rays` [3, 3] has odd nTheta; the middle polar band straddles the horizontal, so up/down faces see 3/4 of the hemisphere and low-emissivity faces absorb ~+80 W/m2 that does not exist (balances still close). Plate-fin coarse: [3, 4] gives R 2.308 K/W (+1.2 %) vs 2.413 (+5.8 %). Infineon runs used --fast-radiation [2, 2] (even nTheta) and are unaffected.
+- RESOLVED in 01-10: default radiation_rays [3, 4] (even nTheta), odd values rounded up with a warning. Regression vs v0.1.0 now shows DIFF in constant/air/radiationProperties for every case with radiation (expected, documented).
 
 - Known issues carried from v0.1.0: warm-up 2× faster than the Infineon measurement; 1.5 K end offset of the lumped warm-up (v2: WARM-01, WARM-02).
 
