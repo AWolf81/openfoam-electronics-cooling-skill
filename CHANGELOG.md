@@ -42,6 +42,13 @@ Each release lists its **package SHA-256** (see "Verify your installation" in th
 
 ### Fixed
 
+- Default radiation rays had an odd polar count (`solver.radiation_rays: [3, 3]`): fvDOM's middle
+  polar band straddled the horizontal plane, so faces facing straight up or down saw 3/4 of the
+  hemisphere and low-emissivity horizontal faces absorbed radiation that does not exist (about
+  80 W/m2; every balance still closed). Default now [3, 4] (48 rays); an odd nTheta in a YAML is
+  rounded up with a warning. Plate-fin R +5.8 % -> about +1 %. Every case with radiation gets a
+  new `radiationProperties`; the comment in it now states the real ray count (4 nPhi nTheta;
+  it said 72 for the 36 rays of [3, 3]). `[2, 2]` (fast radiation) was already even.
 - An adiabatic wall on the domain boundary (`heatsink.back: wall`, and the `back_wall` patch of
   a partial wall) radiated as a black body at the temperature of the air next to it: in the
   plate-fin case with the whole back wall it put 2.8 W (coarse) / 3.1 W (normal) into a case

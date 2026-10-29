@@ -61,23 +61,28 @@ devices at x < 0 on the back of the base.
 
 Radiation: `fvDOM` in the air with `absorptionEmissionModel none` (transparent air), solved
 every 10 iterations. In 3D fvDOM makes 4 nPhi x nTheta rays, nPhi over each 90 degrees of
-azimuth and nTheta over the whole 0-180 degrees of polar angle, so the default [3, 3] is 36 rays
-(the comment written into `radiationProperties` says 72; it is wrong, left so existing cases stay
-byte-identical). Surface emissivities in `constant/air/boundaryRadiationProperties`: `".*"` black
+azimuth and nTheta over the whole 0-180 degrees of polar angle, so the default [3, 4] is 48 rays
+(the comment written into `radiationProperties` states the count; before 0.2.0 it said 72 for
+the 36 rays of [3, 3]). Surface emissivities in `constant/air/boundaryRadiationProperties`: `".*"` black
 (emissivity 1) for the open boundaries, `lookup` per `air_to_<solid>` patch, emissivity 0 for a
 wall on the domain boundary. Solids have `radiation off`; they only exchange through the coupled
 patches. Cases with a wall on the domain boundary also write `radFlow_<patch>` (integral of qr,
 positive = leaving the air) for every domain boundary patch; `report.py` uses them for the domain
 energy balance.
 
-With nTheta odd (the default 3) the middle polar band straddles the horizontal plane, so faces
+nTheta must be even. With nTheta odd (the default before 0.2.0 was 3) the middle polar band
+straddles the horizontal plane, so faces
 with a vertical normal (tops and bottoms of parts, the top and bottom boundaries) see only 3/4 of
 the hemisphere: their incident radiation is 0.75 of the true value (measured: 354 vs 470-500 W/m2
 on vertical faces in a room at 29 C). For black faces this only scales the exchange by 0.75. For
 low-emissivity faces it is worse: the reflected intensity is built from the 0.75 share, so a
 quarter of the incident flux vanishes into the face as spurious absorption, about +80 W/m2 into
-a horizontal face with emissivity 0.05 (plate-fin, see defect 8). An even nTheta (e.g.
-`radiation_rays: [3, 4]`) puts a band boundary in the horizontal plane.
+a horizontal face with emissivity 0.05 (plate-fin, see defect 8). An even nTheta (the default
+`radiation_rays: [3, 4]`) puts a band boundary in the horizontal plane. `load_config` rounds an
+odd nTheta in a YAML up to the next even number and prints a warning (it does not reject it: the
+next even count is the closest correct ray density). `[2, 2]` (the "fast radiation" setting,
+1.3x faster on a fan case) is even and fine; scripts outside the skill that pass explicit rays
+need nothing as long as nTheta is even.
 
 Heat sources: `scalarSemiImplicitSource` on `h`, `selectionMode all`, `volumeMode absolute`,
 in `system/<device>/fvOptions`. The value is W for the whole region.
@@ -142,8 +147,8 @@ report has the sanity gates.
    well under 0.01 W of it, so it is left as is (separating the radiation temperature would
    need an extra field read through `T Tname` on `greyDiffusiveRadiation` and would change
    every case).
-8. **Odd nTheta loses radiation into horizontal low-emissivity faces (open, found in 01-09).**
-   With the default `radiation_rays: [3, 3]` the middle polar band (60-120 degrees) straddles
+8. **Odd nTheta loses radiation into horizontal low-emissivity faces (fixed in 0.2.0, found in
+   01-09).** With the old default `radiation_rays: [3, 3]` the middle polar band (60-120 degrees) straddles
    the horizontal plane, so faces with a vertical normal see only 3/4 of the hemisphere (section
    2). In the plate-fin case (emissivity 0.05 everywhere) the horizontal faces of the sink, foam
    and board absorbed about 80 W/m2 each that does not exist (foam top and bottom +0.25 W each,
@@ -153,9 +158,10 @@ report has the sanity gates.
    conserves in total), so no gate sees it. Same case with `radiation_rays: [3, 4]` (48 rays):
    solids radiate +0.55 W out, the bottom boundary absorbs +0.06 W, the top still emits
    -0.14 W (the warm outflow of defect 7); base 50.3 C instead of 51.3 C, R 2.308 instead of
-   2.413 K/W (measured 2.28). Not changed by default yet: an even nTheta changes every case
-   and the validation numbers. Until then, use an even nTheta when parts with low emissivity
-   have large horizontal faces.
+   2.413 K/W (measured 2.28). Fix: the default is now [3, 4] (48 rays) and an odd nTheta in a
+   YAML is rounded up with a warning. Every case with radiation gets a new
+   `radiationProperties` (nTheta and its comment); the plate-fin numbers in the README are
+   from the new default.
 
 ## 4. Troubleshooting by symptom
 

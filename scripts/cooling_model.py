@@ -17,6 +17,7 @@ Geometry convention (all lengths in the YAML are mm, stored here in m):
 from __future__ import annotations
 
 import math
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -224,6 +225,8 @@ def load_config(path: str | Path) -> Config:
     mesh = {"resolution": "normal", **raw.get("mesh", {})}
     mesh.setdefault("clearance_mm", {})
     solver = {"iterations": 4000, "radiation": True, "n_procs": 8, **raw.get("solver", {})}
+    if "radiation_rays" in solver:
+        solver["radiation_rays"] = load_radiation_rays(solver["radiation_rays"])
 
     cfg = Config(raw.get("name", Path(path).stem), raw.get("ambient_C", 25.0),
                  sink, ims, tim, devices, electrical, mesh, solver, raw)
@@ -232,6 +235,25 @@ def load_config(path: str | Path) -> Config:
     cfg.measurements = load_measurements(raw)
     _check_footprints(cfg)
     return cfg
+
+
+def load_radiation_rays(v) -> list:
+    """solver.radiation_rays [nPhi, nTheta]: fvDOM divisions per octant (4 * nPhi * nTheta rays
+    in 3D). nTheta spans the polar angle 0-180 degrees; an odd count puts the middle band across
+    the horizontal plane, so faces facing straight up or down see only 3/4 of the hemisphere and
+    low-emissivity faces absorb radiation that does not exist (plate-fin: R +5.8 % with [3, 3],
+    +1.2 % with [3, 4]). An odd nTheta is therefore rounded up to the next even number, with a
+    warning on stderr, rather than rejected: the user asked for a ray density, and the next even
+    count is the closest one that is correct."""
+    if not (isinstance(v, (list, tuple)) and len(v) == 2
+            and all(isinstance(n, int) and not isinstance(n, bool) and n >= 1 for n in v)):
+        raise ValueError(f"solver.radiation_rays must be [nPhi, nTheta] (two integers >= 1), got {v!r}")
+    nphi, ntheta = v
+    if ntheta % 2:
+        print(f"warning: solver.radiation_rays nTheta {ntheta} is odd (horizontal faces would see "
+              f"3/4 of the hemisphere); using [{nphi}, {ntheta + 1}]", file=sys.stderr)
+        ntheta += 1
+    return [nphi, ntheta]
 
 
 def load_back(v, W: float, L: float):

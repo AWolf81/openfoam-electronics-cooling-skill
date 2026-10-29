@@ -304,7 +304,10 @@ For pictures, open `case.foam` (or the `VTK/` folder) in ParaView.
 - Fan speed studies: `hand_calc.py case.yaml --velocity 1.5` for one speed, `--calibrate 80`
   for the speed at which the hottest case reaches a measured temperature (a calibration, not
   a prediction: say so). Radiation is the slowest part of a run; `solver.radiation_rays:
-  [2, 2]` and `solver.radiation_every: 50` ran 1.3x faster for 0.4 K on a fan case.
+  [2, 2]` and `solver.radiation_every: 50` ran 1.3x faster for 0.4 K on a fan case. The
+  second number (nTheta) must be even (default [3, 4]; an odd one is rounded up with a
+  warning): with [3, 3] faces facing up or down saw 3/4 of the hemisphere and the plate-fin
+  validation came out at R +5.8 % instead of about +1 %.
 - An enclosure, liquid cold plates, a fan as a real jet, and transient load profiles are not
   built by the generator. The workflow, the YAML and the checks still apply; build those cases
   by hand from `references/openfoam-case-notes.md` and say that they are outside what the skill

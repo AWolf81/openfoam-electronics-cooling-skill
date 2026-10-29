@@ -794,10 +794,12 @@ mixture
     else:
         foam(case / "constant/air/turbulenceProperties", "turbulenceProperties", "simulationType  laminar;")
     if rad:
-        # solver.radiation_rays [nPhi, nTheta] per octant (default 3 3 = 72 rays) and
-        # solver.radiation_every (iterations per fvDOM solve, default 10). [2, 2] and 50 ran
+        # solver.radiation_rays [nPhi, nTheta] (default 3 4 = 48 rays; fvDOM has
+        # 4 * nPhi * nTheta rays in 3D) and solver.radiation_every (iterations per fvDOM solve,
+        # default 10). nTheta must be even (cooling_model.load_radiation_rays rounds an odd one
+        # up): an odd count makes up/down faces see 3/4 of the hemisphere. [2, 2] and 50 ran
         # 1.3x faster for a 0.4 K change in Tj on a fan-cooled case.
-        nphi, ntheta = cfg.solver.get("radiation_rays", [3, 3])
+        nphi, ntheta = cfg.solver.get("radiation_rays", [3, 4])
         every = int(cfg.solver.get("radiation_every", 10))
         foam(case / "constant/air/radiationProperties", "radiationProperties", f"""
 radiation       on;
@@ -805,8 +807,8 @@ radiationModel  fvDOM;
 
 fvDOMCoeffs
 {{
-    nPhi        {nphi};      // azimuthal divisions per octant
-    nTheta      {ntheta};      // polar divisions per octant -> {4 * nphi * ntheta * 2} rays in 3D
+    nPhi        {nphi};      // azimuthal divisions per 90 degrees
+    nTheta      {ntheta};      // polar divisions over 0-180 degrees (even) -> {4 * nphi * ntheta} rays in 3D
     tolerance   1e-3;
     maxIter     5;
 }}
